@@ -64,6 +64,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // --- API DATA (Messages) ---
   const [messages, setMessages] = useState([]);
@@ -128,7 +129,7 @@ const AdminDashboard = () => {
     if (!token) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/messages', {
+      const response = await fetch(`${API_URL}/api/messages`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -489,7 +490,7 @@ const AdminDashboard = () => {
       if (!token) return;
 
       try {
-        const response = await fetch(`http://localhost:5000/api/messages/${id}`, {
+        const response = await fetch(`${API_URL}/api/messages/${id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
