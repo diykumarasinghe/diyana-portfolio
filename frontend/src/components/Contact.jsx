@@ -39,7 +39,7 @@ const Contact = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -50,26 +50,23 @@ const Contact = () => {
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const existingMessagesJson = localStorage.getItem('portfolioMessages');
-      const messages = existingMessagesJson ? JSON.parse(existingMessagesJson) : [];
-
-      const newMessage = {
-        id: Date.now().toString(),
-        name: formData.name,
-        email: formData.email,
-        message: formData.message,
-        date: new Date().toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
+    try {
+      const response = await fetch('http://localhost:5000/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          message: formData.message
         })
-      };
+      });
 
-      messages.unshift(newMessage);
-      localStorage.setItem('portfolioMessages', JSON.stringify(messages));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to submit message.');
+      }
 
       setIsSubmitting(false);
       setSubmitSuccess(true);
@@ -78,7 +75,10 @@ const Contact = () => {
       setTimeout(() => {
         setSubmitSuccess(false);
       }, 5000);
-    }, 1200);
+    } catch (error) {
+      setIsSubmitting(false);
+      setErrorMessage(error.message || 'Could not send message. Please try again.');
+    }
   };
 
   return (

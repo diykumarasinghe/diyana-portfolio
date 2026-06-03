@@ -1,8 +1,10 @@
 import React from 'react';
 import { portfolioData } from '../data/portfolioData';
 
+import { useCMSData } from '../utils/cmsHelper';
+
 const Skills = () => {
-  const skillsData = portfolioData.skills;
+  const skillsData = useCMSData('skills');
 
   const categoryConfigs = {
     'Programming Languages': {

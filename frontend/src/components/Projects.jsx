@@ -34,10 +34,14 @@ const LinkedinIcon = ({ className = "h-4 w-4" }) => (
   </svg>
 );
 
-const Projects = () => {
-  const projects = portfolioData.projects;
+import { useCMSData } from '../utils/cmsHelper';
 
-  const getProjectIcon = (id) => {
+const Projects = () => {
+  const projects = useCMSData('projects');
+
+  const getProjectIcon = (project) => {
+    if (project.icon) return <span className="text-xl">{project.icon}</span>;
+    const id = project.id;
     switch (id) {
       case 'back2u':
         return <span className="text-xl">🔍</span>;
@@ -82,7 +86,7 @@ const Projects = () => {
                 {/* Header Row */}
                 <div className="flex items-center justify-between mb-5">
                   <div className="p-2.5 rounded-lg bg-[#0f172a]/60 border border-white/5 shrink-0">
-                    {getProjectIcon(project.id)}
+                    {getProjectIcon(project)}
                   </div>
                   <span className="text-[10px] font-extrabold tracking-widest text-[#94A3B8]/60 uppercase">
                     {project.type}

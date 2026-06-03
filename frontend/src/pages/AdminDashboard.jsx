@@ -2,742 +2,1439 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
+  User, 
+  Info, 
+  GraduationCap, 
   Briefcase, 
+  FolderGit2, 
   Award, 
+  Wrench, 
   Mail, 
+  BarChart3, 
+  Settings as SettingsIcon, 
   LogOut, 
-  Plus, 
-  Edit, 
-  Trash2, 
   Eye, 
+  Check, 
+  Trash2, 
   Menu, 
   X, 
-  ChevronRight, 
-  User, 
   Clock, 
-  Check, 
-  FileText,
-  AlertCircle
+  Plus, 
+  Edit, 
+  FileText, 
+  Shield, 
+  Send,
+  EyeOff,
+  Globe
 } from 'lucide-react';
-import { portfolioData } from '../data/portfolioData';
+import { getCMSData, saveCMSData } from '../utils/cmsHelper';
+
+const GithubIcon = ({ className = "h-4 w-4" }) => (
+  <svg 
+    className={className} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2.5" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+    <path d="M9 18c-4.51 2-5-2-7-2" />
+  </svg>
+);
+
+const LinkedinIcon = ({ className = "h-4 w-4" }) => (
+  <svg 
+    className={className} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2.5" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+    <rect width="4" height="12" x="2" y="9" />
+    <circle cx="4" cy="4" r="2" />
+  </svg>
+);
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // --- CRUD States ---
-  const [projects, setProjects] = useState([]);
-  const [certificates, setCertificates] = useState([]);
+  // --- API DATA (Messages) ---
   const [messages, setMessages] = useState([]);
+  const [readMessageIds, setReadMessageIds] = useState([]);
+  const [repliedMessageIds, setRepliedMessageIds] = useState([]);
+  const [deletedCount, setDeletedCount] = useState(0);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [isReplying, setIsReplying] = useState(false);
 
-  // Modals Toggles
+  // --- CMS DATA STATES (Synchronized with localStorage) ---
+  const [heroData, setHeroData] = useState({});
+  const [aboutData, setAboutData] = useState({});
+  const [educationData, setEducationData] = useState([]);
+  const [experienceData, setExperienceData] = useState([]);
+  const [cvData, setCvData] = useState({});
+  const [projectsData, setProjectsData] = useState([]);
+  const [certificatesData, setCertificatesData] = useState([]);
+  const [skillsData, setSkillsData] = useState([]);
+
+  // --- CRUD Modals & Form States ---
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
-  
+  const [projectForm, setProjectForm] = useState({
+    title: '', category: '', description: '', imgUrl: '', githubUrl: '', linkedinUrl: '', liveDemoUrl: '', tech: '', icon: ''
+  });
+
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const [editingCert, setEditingCert] = useState(null);
-  
-  const [selectedMessage, setSelectedMessage] = useState(null);
-
-  // Form Fields
-  const [projectForm, setProjectForm] = useState({
-    title: '',
-    type: '',
-    tech: '',
-    shortDesc: ''
-  });
-
   const [certForm, setCertForm] = useState({
-    title: '',
-    issuer: '',
-    skillsEarned: '',
-    date: ''
+    title: '', issuer: '', date: '', description: '', link: '', linkedinUrl: '', tags: '', icon: ''
   });
 
-  // --- Initialize state from LocalStorage or Fallbacks ---
+  const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
+  const [editingSkill, setEditingSkill] = useState(null);
+  const [skillForm, setSkillForm] = useState({
+    category: '', items: '', icon: '', accentColor: ''
+  });
+
+  const [isExpModalOpen, setIsExpModalOpen] = useState(false);
+  const [editingExp, setEditingExp] = useState(null);
+  const [expForm, setExpForm] = useState({
+    company: '', position: '', duration: '', description: '', technologies: '', logoUrl: ''
+  });
+
+  const [isEduModalOpen, setIsEduModalOpen] = useState(false);
+  const [editingEdu, setEditingEdu] = useState(null);
+  const [eduForm, setEduForm] = useState({
+    institute: '', degree: '', specialization: '', duration: '', status: ''
+  });
+
+  // Settings & Status
+  const [settingsForm, setSettingsForm] = useState({
+    email: 'it23770638@gmail.com', newPassword: '', confirmPassword: ''
+  });
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [profileUpdatedDate, setProfileUpdatedDate] = useState('Jun 03, 2026');
+
+  // Fetch messages from MongoDB API
+  const fetchMessages = async () => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+
+    try {
+      const response = await fetch('http://localhost:5000/api/messages', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch messages');
+
+      const data = await response.json();
+      const mapped = data.map(m => ({
+        id: m._id,
+        name: m.name,
+        email: m.email,
+        message: m.message,
+        date: new Date(m.createdAt).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        })
+      }));
+      setMessages(mapped);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  // Sync and initialize all states
   useEffect(() => {
-    // 1. Projects
-    const localProjects = localStorage.getItem('dashboardProjects');
-    if (localProjects) {
-      setProjects(JSON.parse(localProjects));
-    } else {
-      localStorage.setItem('dashboardProjects', JSON.stringify(portfolioData.projects));
-      setProjects(portfolioData.projects);
+    if (!localStorage.getItem('adminToken')) {
+      navigate('/admin/login', { replace: true });
+      return;
     }
 
-    // 2. Certificates
-    const localCerts = localStorage.getItem('dashboardCerts');
-    if (localCerts) {
-      setCertificates(JSON.parse(localCerts));
-    } else {
-      localStorage.setItem('dashboardCerts', JSON.stringify(portfolioData.certificates));
-      setCertificates(portfolioData.certificates);
-    }
+    // Load Local Data
+    setHeroData(getCMSData('hero'));
+    setAboutData(getCMSData('about'));
+    const edu = getCMSData('education');
+    setEducationData(Array.isArray(edu) ? edu : [edu]);
+    setExperienceData(getCMSData('experience'));
+    setCvData(getCMSData('cv'));
+    setProjectsData(getCMSData('projects'));
+    setCertificatesData(getCMSData('certificates'));
+    setSkillsData(getCMSData('skills'));
 
-    // 3. Messages (seed with a dummy inquiry if empty)
-    const localMessages = localStorage.getItem('portfolioMessages');
-    if (localMessages) {
-      setMessages(JSON.parse(localMessages));
-    } else {
-      const seedMessages = [
-        {
-          id: 'seed-1',
-          name: 'Sarah Connor',
-          email: 'sarah.connor@cyberdyne.com',
-          message: 'Hi Diyana, I saw your Smart Campus Operations Hub project and I would love to discuss a potential internship opportunity with our dev team.',
-          date: 'Jun 2, 2026, 10:14 AM'
-        }
-      ];
-      localStorage.setItem('portfolioMessages', JSON.stringify(seedMessages));
-      setMessages(seedMessages);
-    }
-  }, []);
+    // Load Message Meta States
+    const savedRead = localStorage.getItem('readMessageIds');
+    if (savedRead) setReadMessageIds(JSON.parse(savedRead));
 
-  // --- Handlers ---
+    const savedReplied = localStorage.getItem('repliedMessageIds');
+    if (savedReplied) setRepliedMessageIds(JSON.parse(savedReplied));
+
+    const savedDeleted = localStorage.getItem('deletedMessagesCount');
+    if (savedDeleted) setDeletedCount(Number(savedDeleted));
+
+    const savedProfileUpdate = localStorage.getItem('cms_profileUpdatedDate');
+    if (savedProfileUpdate) setProfileUpdatedDate(savedProfileUpdate);
+
+    fetchMessages();
+  }, [navigate]);
+
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     navigate('/admin/login', { replace: true });
   };
 
-  // --- Project Add / Edit CRUD Operations ---
+  // --- SAVE ACTIONS ---
+  const saveProfile = (e) => {
+    e.preventDefault();
+    saveCMSData('hero', heroData);
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    setProfileUpdatedDate(dateStr);
+    localStorage.setItem('cms_profileUpdatedDate', dateStr);
+    alert('Profile data saved successfully! Updates are now live on the public portfolio.');
+  };
+
+  const saveAbout = (e) => {
+    e.preventDefault();
+    saveCMSData('about', aboutData);
+    alert('About section data saved successfully!');
+  };
+
+  // --- EDUCATION CRUD ---
+  const openEduModal = (edu = null) => {
+    if (edu) {
+      setEditingEdu(edu);
+      setEduForm({
+        institute: edu.institute,
+        degree: edu.degree,
+        specialization: edu.specialization,
+        duration: edu.duration,
+        status: edu.status
+      });
+    } else {
+      setEditingEdu(null);
+      setEduForm({ institute: '', degree: '', specialization: '', duration: '', status: 'Active' });
+    }
+    setIsEduModalOpen(true);
+  };
+
+  const handleSaveEdu = (e) => {
+    e.preventDefault();
+    let updated;
+    if (editingEdu) {
+      updated = educationData.map(item => item.id === editingEdu.id ? { ...item, ...eduForm } : item);
+    } else {
+      const newItem = { ...eduForm, id: 'edu-' + Date.now() };
+      updated = [...educationData, newItem];
+    }
+    setEducationData(updated);
+    saveCMSData('education', updated);
+    setIsEduModalOpen(false);
+  };
+
+  const handleDeleteEdu = (id) => {
+    if (window.confirm('Delete this academic entry?')) {
+      const updated = educationData.filter(item => item.id !== id);
+      setEducationData(updated);
+      saveCMSData('education', updated);
+    }
+  };
+
+  const saveCV = (e) => {
+    e.preventDefault();
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const updatedCV = { ...cvData, lastUpdated: dateStr };
+    setCvData(updatedCV);
+    saveCMSData('cv', updatedCV);
+    alert('CV settings updated successfully!');
+  };
+
+  // --- EXPERIENCE CRUD ---
+  const openExpModal = (exp = null) => {
+    if (exp) {
+      setEditingExp(exp);
+      setExpForm({
+        company: exp.company,
+        position: exp.position,
+        duration: exp.duration,
+        description: exp.description,
+        technologies: exp.technologies,
+        logoUrl: exp.logoUrl || ''
+      });
+    } else {
+      setEditingExp(null);
+      setExpForm({ company: '', position: '', duration: '', description: '', technologies: '', logoUrl: '' });
+    }
+    setIsExpModalOpen(true);
+  };
+
+  const handleSaveExp = (e) => {
+    e.preventDefault();
+    let updated;
+    if (editingExp) {
+      updated = experienceData.map(item => item.id === editingExp.id ? { ...item, ...expForm } : item);
+    } else {
+      const newItem = { ...expForm, id: 'exp-' + Date.now() };
+      updated = [newItem, ...experienceData];
+    }
+    setExperienceData(updated);
+    saveCMSData('experience', updated);
+    setIsExpModalOpen(false);
+  };
+
+  const handleDeleteExp = (id) => {
+    if (window.confirm('Delete this internship/job experience?')) {
+      const updated = experienceData.filter(item => item.id !== id);
+      setExperienceData(updated);
+      saveCMSData('experience', updated);
+    }
+  };
+
+  // --- PROJECTS CRUD ---
   const openProjectModal = (proj = null) => {
     if (proj) {
       setEditingProject(proj);
       setProjectForm({
         title: proj.title,
-        type: proj.type,
-        tech: proj.tech.join(', '),
-        shortDesc: proj.shortDesc
+        category: proj.type || proj.category || 'MERN Project',
+        description: proj.shortDesc || proj.description || '',
+        imgUrl: proj.imgUrl || '',
+        githubUrl: proj.githubUrl || '',
+        linkedinUrl: proj.linkedinUrl || '',
+        liveDemoUrl: proj.liveDemoUrl || '',
+        tech: Array.isArray(proj.tech) ? proj.tech.join(', ') : proj.tech || '',
+        icon: proj.icon || '🔍'
       });
     } else {
       setEditingProject(null);
-      setProjectForm({
-        title: '',
-        type: 'MERN Project',
-        tech: '',
-        shortDesc: ''
-      });
+      setProjectForm({ title: '', category: 'MERN Project', description: '', imgUrl: '', githubUrl: '', linkedinUrl: '', liveDemoUrl: '', tech: '', icon: '🔍' });
     }
     setIsProjectModalOpen(true);
   };
 
   const handleSaveProject = (e) => {
     e.preventDefault();
-    if (!projectForm.title || !projectForm.shortDesc) return;
+    let updated;
+    const mappedForm = {
+      title: projectForm.title,
+      type: projectForm.category,
+      category: projectForm.category,
+      shortDesc: projectForm.description,
+      description: projectForm.description,
+      imgUrl: projectForm.imgUrl,
+      githubUrl: projectForm.githubUrl,
+      linkedinUrl: projectForm.linkedinUrl,
+      liveDemoUrl: projectForm.liveDemoUrl,
+      tech: projectForm.tech.split(',').map(t => t.trim()).filter(Boolean),
+      icon: projectForm.icon || '🔍',
+      details: {
+        problem: 'Sleek project case study problem statement.',
+        solution: 'Custom case study solution statement.',
+        role: 'Full-Stack Developer',
+        contributions: ['Designed dynamic forms.', 'Integrated database models.'],
+        challenges: 'Minor responsive styling challenges resolved.'
+      }
+    };
 
-    let updatedProjects = [];
     if (editingProject) {
-      // Edit
-      updatedProjects = projects.map(p => 
-        p.id === editingProject.id 
-          ? { 
-              ...p, 
-              title: projectForm.title, 
-              type: projectForm.type, 
-              tech: projectForm.tech.split(',').map(t => t.trim()).filter(Boolean),
-              shortDesc: projectForm.shortDesc
-            }
-          : p
-      );
+      updated = projectsData.map(p => p.id === editingProject.id ? { ...p, ...mappedForm } : p);
     } else {
-      // Add
-      const newProj = {
-        id: 'proj-' + Date.now(),
-        title: projectForm.title,
-        type: projectForm.type,
-        tech: projectForm.tech.split(',').map(t => t.trim()).filter(Boolean),
-        shortDesc: projectForm.shortDesc,
-        githubUrl: 'https://github.com/diyanakumarasinghe',
-        linkedinUrl: 'https://linkedin.com',
-        liveDemoUrl: '#',
-        details: {
-          problem: 'Case study details mock problem statement.',
-          solution: 'Case study details mock solution statement.',
-          role: 'Full-Stack Developer',
-          contributions: ['Developed basic features.', 'Maintained code repository.'],
-          challenges: 'Minor deployment adjustments.'
-        }
-      };
-      updatedProjects = [newProj, ...projects];
+      const newProj = { ...mappedForm, id: 'proj-' + Date.now() };
+      updated = [newProj, ...projectsData];
     }
-
-    setProjects(updatedProjects);
-    localStorage.setItem('dashboardProjects', JSON.stringify(updatedProjects));
+    setProjectsData(updated);
+    saveCMSData('projects', updated);
     setIsProjectModalOpen(false);
   };
 
   const handleDeleteProject = (id) => {
     if (window.confirm('Are you sure you want to delete this project?')) {
-      const updated = projects.filter(p => p.id !== id);
-      setProjects(updated);
-      localStorage.setItem('dashboardProjects', JSON.stringify(updated));
+      const updated = projectsData.filter(p => p.id !== id);
+      setProjectsData(updated);
+      saveCMSData('projects', updated);
     }
   };
 
-  // --- Certificate Add / Edit CRUD Operations ---
+  // --- CERTIFICATES CRUD ---
   const openCertModal = (cert = null) => {
     if (cert) {
       setEditingCert(cert);
       setCertForm({
         title: cert.title,
         issuer: cert.issuer,
-        skillsEarned: cert.skillsEarned.join(', '),
-        date: cert.date
+        date: cert.date,
+        description: cert.description || '',
+        link: cert.link || '',
+        linkedinUrl: cert.linkedinUrl || '',
+        tags: Array.isArray(cert.tags) ? cert.tags.join(', ') : cert.tags || '',
+        icon: cert.icon || '🍃'
       });
     } else {
       setEditingCert(null);
-      setCertForm({
-        title: '',
-        issuer: '',
-        skillsEarned: '',
-        date: new Date().getFullYear().toString()
-      });
+      setCertForm({ title: '', issuer: '', date: new Date().getFullYear().toString(), description: '', link: '', linkedinUrl: '', tags: '', icon: '🍃' });
     }
     setIsCertModalOpen(true);
   };
 
   const handleSaveCert = (e) => {
     e.preventDefault();
-    if (!certForm.title || !certForm.issuer) return;
+    let updated;
+    const mappedForm = {
+      title: certForm.title,
+      issuer: certForm.issuer,
+      date: certForm.date,
+      description: certForm.description,
+      link: certForm.link,
+      linkedinUrl: certForm.linkedinUrl,
+      tags: certForm.tags.split(',').map(s => s.trim()).filter(Boolean),
+      skillsEarned: certForm.tags.split(',').map(s => s.trim()).filter(Boolean),
+      icon: certForm.icon || '🍃'
+    };
 
-    let updatedCerts = [];
     if (editingCert) {
-      // Edit
-      updatedCerts = certificates.map((c, idx) => 
-        idx === editingCert.index
-          ? {
-              title: certForm.title,
-              issuer: certForm.issuer,
-              skillsEarned: certForm.skillsEarned.split(',').map(s => s.trim()).filter(Boolean),
-              date: certForm.date
-            }
-          : c
-      );
+      updated = certificatesData.map(c => c.id === editingCert.id ? { ...c, ...mappedForm } : c);
     } else {
-      // Add
-      const newCert = {
-        title: certForm.title,
-        issuer: certForm.issuer,
-        skillsEarned: certForm.skillsEarned.split(',').map(s => s.trim()).filter(Boolean),
-        date: certForm.date
-      };
-      updatedCerts = [newCert, ...certificates];
+      const newCert = { ...mappedForm, id: 'cert-' + Date.now() };
+      updated = [newCert, ...certificatesData];
     }
-
-    setCertificates(updatedCerts);
-    localStorage.setItem('dashboardCerts', JSON.stringify(updatedCerts));
+    setCertificatesData(updated);
+    saveCMSData('certificates', updated);
     setIsCertModalOpen(false);
   };
 
-  const handleDeleteCert = (index) => {
-    if (window.confirm('Are you sure you want to delete this certificate?')) {
-      const updated = certificates.filter((_, idx) => idx !== index);
-      setCertificates(updated);
-      localStorage.setItem('dashboardCerts', JSON.stringify(updated));
+  const handleDeleteCert = (id) => {
+    if (window.confirm('Are you sure you want to delete this credential?')) {
+      const updated = certificatesData.filter(c => c.id !== id);
+      setCertificatesData(updated);
+      saveCMSData('certificates', updated);
     }
   };
 
-  // --- Messages Delete Operation ---
-  const handleDeleteMessage = (id) => {
-    if (window.confirm('Are you sure you want to delete this message?')) {
-      const updated = messages.filter(m => m.id !== id);
-      setMessages(updated);
-      localStorage.setItem('portfolioMessages', JSON.stringify(updated));
+  // --- SKILLS CRUD ---
+  const openSkillModal = (skill = null) => {
+    if (skill) {
+      setEditingSkill(skill);
+      setSkillForm({
+        category: skill.category,
+        items: Array.isArray(skill.items) ? skill.items.join(', ') : skill.items || '',
+        icon: skill.icon || '💻',
+        accentColor: skill.accentColor || '#38BDF8'
+      });
+    } else {
+      setEditingSkill(null);
+      setSkillForm({ category: '', items: '', icon: '💻', accentColor: '#38BDF8' });
+    }
+    setIsSkillModalOpen(true);
+  };
+
+  const handleSaveSkill = (e) => {
+    e.preventDefault();
+    let updated;
+    const color = skillForm.accentColor;
+    const mappedForm = {
+      category: skillForm.category,
+      items: skillForm.items.split(',').map(s => s.trim()).filter(Boolean),
+      icon: skillForm.icon || '💻',
+      accentColor: color,
+      bgGradient: `from-[${color}]/20 to-[#0f172a]/5`,
+      glowColor: `rgba(56, 189, 248, 0.15)`,
+      hoverGlow: `hover:shadow-[0_0_30px_rgba(56,189,248,0.25)]`,
+      borderColor: `border-[${color}]/20 hover:border-[${color}]/50`,
+      badgeBg: `bg-[${color}]/5 hover:bg-[${color}]/15 border-[${color}]/10 hover:border-[${color}]/30`,
+      badgeText: `text-[#F8FAFC]`,
+      description: `Languages and tools utilized for ${skillForm.category}`
+    };
+
+    if (editingSkill) {
+      // Find category index or replace
+      updated = skillsData.map((s, idx) => idx === editingSkill.index ? { ...s, ...mappedForm } : s);
+    } else {
+      updated = [...skillsData, mappedForm];
+    }
+    setSkillsData(updated);
+    saveCMSData('skills', updated);
+    setIsSkillModalOpen(false);
+  };
+
+  const handleDeleteSkill = (index) => {
+    if (window.confirm('Delete this entire skill category?')) {
+      const updated = skillsData.filter((_, idx) => idx !== index);
+      setSkillsData(updated);
+      saveCMSData('skills', updated);
     }
   };
+
+  // --- MESSAGES CRUD & ACTIONS ---
+  const markAsRead = (id) => {
+    if (!readMessageIds.includes(id)) {
+      const updated = [...readMessageIds, id];
+      setReadMessageIds(updated);
+      localStorage.setItem('readMessageIds', JSON.stringify(updated));
+    }
+  };
+
+  const handleViewMessage = (msg) => {
+    setSelectedMessage(msg);
+    markAsRead(msg.id);
+  };
+
+  const handleDeleteMessage = async (id) => {
+    if (window.confirm('Delete this message from the database?')) {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return;
+
+      try {
+        const response = await fetch(`http://localhost:5000/api/messages/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to delete message');
+
+        setMessages(prev => prev.filter(m => m.id !== id));
+        if (selectedMessage?.id === id) setSelectedMessage(null);
+
+        const updatedCount = deletedCount + 1;
+        setDeletedCount(updatedCount);
+        localStorage.setItem('deletedMessagesCount', updatedCount.toString());
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        alert('Could not delete message.');
+      }
+    }
+  };
+
+  const handleReplyMessage = (e) => {
+    e.preventDefault();
+    if (!replyText.trim()) return;
+
+    // Prefill Gmail web compose link and open in a new tab using the admin's email account session
+    const subject = encodeURIComponent("Reply from Diyana Kumarasinghe");
+    const body = encodeURIComponent(replyText);
+    const senderEmail = heroData.email || 'diykumarasinghe14@gmail.com';
+    const gmailLink = `https://mail.google.com/mail/u/${senderEmail}/?view=cm&fs=1&to=${selectedMessage.email}&su=${subject}&body=${body}`;
+    window.open(gmailLink, '_blank', 'noopener,noreferrer');
+
+    // Record as replied
+    if (!repliedMessageIds.includes(selectedMessage.id)) {
+      const updated = [...repliedMessageIds, selectedMessage.id];
+      setRepliedMessageIds(updated);
+      localStorage.setItem('repliedMessageIds', JSON.stringify(updated));
+    }
+
+    setReplyText('');
+    setIsReplying(false);
+    setSelectedMessage(null);
+  };
+
+  // --- COMPUTED TOTALS ---
+  const totalMessages = messages.length;
+  const readMessages = messages.filter(m => readMessageIds.includes(m.id)).length;
+  const newMessages = messages.filter(m => !readMessageIds.includes(m.id)).length;
+  const repliedMessages = messages.filter(m => repliedMessageIds.includes(m.id)).length;
 
   return (
-    <div className="min-h-screen bg-[#02040a] text-gray-200 flex font-sans">
+    <div className="min-h-screen bg-[#03061B] text-[#F8FAFC] flex font-outfit relative overflow-hidden text-left">
       
-      {/* Sidebar - Desktop Layout */}
-      <aside className="hidden lg:flex w-64 flex-col bg-[#0b0e17] border-r border-white/5 shrink-0">
-        {/* Sidebar Brand header */}
-        <div className="h-20 flex items-center justify-between px-6 border-b border-white/5">
-          <span className="text-xl font-bold text-white">Diyana <span className="text-neonBlue">Admin</span></span>
+      {/* Decorative Orbs */}
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#3B82F6]/5 rounded-full blur-[120px] -z-10" />
+      <div className="absolute bottom-1/4 right-0 w-[500px] h-[500px] bg-[#00D4FF]/5 rounded-full blur-[120px] -z-10" />
+
+      {/* Mobile Drawer Overlay */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
+      )}
+
+      {/* SIDEBAR NAVIGATION */}
+      <aside 
+        className={`fixed inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 w-64 bg-[#07122B] border-r border-[#1B2B4D] flex flex-col justify-between shrink-0 lg:static`}
+        style={{ boxShadow: '10px 0 30px rgba(3,6,27,0.5)' }}
+      >
+        <div>
+          {/* Brand Logo */}
+          <div className="h-20 flex items-center justify-between px-6 border-b border-[#1B2B4D]">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-[#00D4FF] to-[#3B82F6] flex items-center justify-center shadow-[0_0_10px_rgba(0,212,255,0.4)]">
+                <Shield className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-lg font-extrabold tracking-wide text-white">
+                Diyana <span className="bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] bg-clip-text text-transparent">CMS</span>
+              </span>
+            </div>
+            <button className="lg:hidden p-1 text-gray-400 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Navigation links */}
+          <nav className="px-3 py-6 space-y-1 overflow-y-auto max-h-[calc(100vh-160px)]">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'profile', label: 'Profile', icon: User },
+              { id: 'about', label: 'About', icon: Info },
+              { id: 'education', label: 'Education', icon: GraduationCap },
+              { id: 'experience', label: 'Experience', icon: Briefcase },
+              { id: 'projects', label: 'Projects', icon: FolderGit2 },
+              { id: 'certificates', label: 'Certificates', icon: Award },
+              { id: 'skills', label: 'Skills', icon: Wrench },
+              { id: 'messages', label: 'Messages', icon: Mail, badge: newMessages > 0 ? newMessages : null },
+              { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+              { id: 'settings', label: 'Settings', icon: SettingsIcon },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setIsSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-[#00D4FF]/15 to-[#3B82F6]/5 text-[#00D4FF] border border-[#00D4FF]/25 shadow-[0_0_12px_rgba(0,212,255,0.08)]' 
+                      : 'text-[#94A3B8] hover:bg-white/[0.02] hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Icon className={`h-4.5 w-4.5 ${isActive ? 'text-[#00D4FF]' : 'text-[#94A3B8]'}`} />
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="bg-[#3B82F6] text-white font-bold text-[9px] px-2 py-0.5 rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Sidebar Links */}
-        <nav className="flex-1 px-4 py-6 space-y-2 text-left">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-              activeTab === 'dashboard' ? 'bg-neonBlue/10 text-neonBlue border-l-2 border-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            <span>Dashboard</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('projects')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-              activeTab === 'projects' ? 'bg-neonBlue/10 text-neonBlue border-l-2 border-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Briefcase className="h-4 w-4" />
-            <span>Projects</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('certificates')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-              activeTab === 'certificates' ? 'bg-neonBlue/10 text-neonBlue border-l-2 border-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Award className="h-4 w-4" />
-            <span>Certificates</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-              activeTab === 'messages' ? 'bg-neonBlue/10 text-neonBlue border-l-2 border-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <div className="flex items-center space-x-3">
-              <Mail className="h-4 w-4" />
-              <span>Messages</span>
-            </div>
-            {messages.length > 0 && (
-              <span className="text-[10px] font-bold bg-neonBlue text-darkBg px-2 py-0.5 rounded-full shrink-0">
-                {messages.length}
-              </span>
-            )}
-          </button>
-        </nav>
-
-        {/* Sidebar Footer logout */}
-        <div className="p-4 border-t border-white/5">
+        {/* Footer Logout */}
+        <div className="p-4 border-t border-[#1B2B4D]">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-semibold text-gray-400 hover:text-neonPink hover:bg-white/5 rounded-lg transition-all duration-200 cursor-pointer"
+            className="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200 cursor-pointer"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4.5 w-4.5" />
             <span>Logout</span>
           </button>
         </div>
       </aside>
 
-      {/* Sidebar - Mobile Drawer */}
-      {isSidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}>
-          <div className="w-64 h-full bg-[#0b0e17] border-r border-white/5 flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="h-20 flex items-center justify-between px-6 border-b border-white/5">
-              <span className="text-xl font-bold text-white">Diyana <span className="text-neonBlue">Admin</span></span>
-              <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white">
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <nav className="flex-1 px-4 py-6 space-y-2 text-left">
-              <button
-                onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  activeTab === 'dashboard' ? 'bg-neonBlue/10 text-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Dashboard</span>
-              </button>
-              <button
-                onClick={() => { setActiveTab('projects'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  activeTab === 'projects' ? 'bg-neonBlue/10 text-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <Briefcase className="h-4 w-4" />
-                <span>Projects</span>
-              </button>
-              <button
-                onClick={() => { setActiveTab('certificates'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  activeTab === 'certificates' ? 'bg-neonBlue/10 text-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <Award className="h-4 w-4" />
-                <span>Certificates</span>
-              </button>
-              <button
-                onClick={() => { setActiveTab('messages'); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  activeTab === 'messages' ? 'bg-neonBlue/10 text-neonBlue' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Mail className="h-4 w-4" />
-                  <span>Messages</span>
-                </div>
-                {messages.length > 0 && (
-                  <span className="text-[10px] font-bold bg-neonBlue text-darkBg px-2 py-0.5 rounded-full">
-                    {messages.length}
-                  </span>
-                )}
-              </button>
-            </nav>
-            <div className="p-4 border-t border-white/5">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-semibold text-gray-400 hover:text-neonPink hover:bg-white/5 rounded-lg transition-all duration-200 cursor-pointer"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+      {/* MAIN CONTAINER */}
+      <div className="flex-1 flex flex-col min-w-0">
         
-        {/* Top Header */}
-        <header className="h-20 border-b border-white/5 flex items-center justify-between px-6 sm:px-8 bg-[#070911]/80 backdrop-blur-md sticky top-0 z-30">
+        {/* TOP NAVBAR */}
+        <header className="h-20 bg-[#07122B]/60 border-b border-[#1B2B4D] backdrop-blur-md flex items-center justify-between px-6 sm:px-8 relative z-20">
           <div className="flex items-center space-x-4">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden text-gray-400 hover:text-white"
+              className="lg:hidden p-2 rounded-lg bg-[#07122B] border border-[#1B2B4D] text-gray-400 hover:text-white"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5" />
             </button>
-            <h2 className="text-xl font-bold text-white capitalize">
-              {activeTab === 'dashboard' ? 'Overview' : activeTab}
-            </h2>
+            {activeTab !== 'dashboard' && (
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/20 hover:border-[#38BDF8]/40 text-xs font-bold text-[#38BDF8] hover:bg-[#38BDF8]/20 transition-all duration-200 cursor-pointer mr-2"
+              >
+                <span>← Back to Dashboard</span>
+              </button>
+            )}
+            <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white capitalize">
+              {activeTab} Management
+            </h1>
           </div>
+
           <div className="flex items-center space-x-4">
-            <a 
-              href="/"
-              target="_blank" 
-              className="text-xs font-bold text-neonBlue hover:underline bg-neonBlue/10 border border-neonBlue/20 px-3.5 py-1.5 rounded-lg transition-all duration-200"
-            >
-              View Live Portfolio
-            </a>
-            <div className="h-8 w-[1px] bg-white/10" />
-            <div className="flex items-center space-x-2">
-              <div className="h-8 w-8 rounded-full bg-neonBlue/20 border border-neonBlue/40 flex items-center justify-center font-bold text-xs text-neonBlue">
-                A
-              </div>
-              <span className="hidden sm:inline text-xs font-semibold text-gray-400">Admin</span>
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-xs font-bold text-[#F8FAFC]">{heroData.name || 'Diyana Kumarasinghe'}</span>
+              <span className="text-[10px] text-[#94A3B8] font-bold">Administrator</span>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-[#00D4FF] to-[#3B82F6] flex items-center justify-center font-bold text-white shadow-[0_0_10px_rgba(0,212,255,0.3)]">
+              DK
             </div>
           </div>
         </header>
 
-        {/* Dynamic Tab Body */}
-        <main className="flex-1 p-6 sm:p-8 space-y-8">
-          
-          {/* TAB 1: OVERVIEW DASHBOARD */}
+        {/* MAIN BODY AREA */}
+        <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+
+          {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-8">
+            <div className="space-y-8 max-w-6xl mx-auto">
               
               {/* Stat Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                 
-                {/* Stat 1: Projects */}
-                <div 
-                  onClick={() => setActiveTab('projects')}
-                  className="glass-card p-6 rounded-2xl border border-white/5 hover:border-neonBlue/30 hover:shadow-[0_0_15px_rgba(0,240,255,0.05)] transition-all duration-300 text-left flex items-center justify-between cursor-pointer group"
-                >
-                  <div className="space-y-2">
-                    <p className="text-xs uppercase font-extrabold text-gray-500 tracking-wider">Total Projects</p>
-                    <p className="text-3xl font-extrabold text-white group-hover:text-neonBlue transition-colors duration-200">{projects.length}</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-neonBlue/10 border border-neonBlue/20 text-neonBlue">
-                    <Briefcase className="h-6 w-6" />
-                  </div>
-                </div>
-
-                {/* Stat 2: Certificates */}
-                <div 
-                  onClick={() => setActiveTab('certificates')}
-                  className="glass-card p-6 rounded-2xl border border-white/5 hover:border-neonSky/30 hover:shadow-[0_0_15px_rgba(0,114,255,0.05)] transition-all duration-300 text-left flex items-center justify-between cursor-pointer group"
-                >
-                  <div className="space-y-2">
-                    <p className="text-xs uppercase font-extrabold text-gray-500 tracking-wider">Certificates</p>
-                    <p className="text-3xl font-extrabold text-white group-hover:text-neonSky transition-colors duration-200">{certificates.length}</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-neonSky/10 border border-neonSky/20 text-neonSky">
-                    <Award className="h-6 w-6" />
-                  </div>
-                </div>
-
-                {/* Stat 3: Messages */}
-                <div 
-                  onClick={() => setActiveTab('messages')}
-                  className="glass-card p-6 rounded-2xl border border-white/5 hover:border-neonBlue/30 hover:shadow-[0_0_15px_rgba(0,240,255,0.05)] transition-all duration-300 text-left flex items-center justify-between cursor-pointer group"
-                >
-                  <div className="space-y-2">
-                    <p className="text-xs uppercase font-extrabold text-gray-500 tracking-wider">Inquiries Received</p>
-                    <p className="text-3xl font-extrabold text-white group-hover:text-neonBlue transition-colors duration-200">{messages.length}</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-neonBlue/10 border border-neonBlue/20 text-neonBlue">
-                    <Mail className="h-6 w-6" />
-                  </div>
-                </div>
+                {[
+                  { label: 'Total Projects', count: projectsData.length, color: '#3B82F6', text: 'Active', tabId: 'projects' },
+                  { label: 'Total Certificates', count: certificatesData.length, color: '#00D4FF', text: 'Verified', tabId: 'certificates' },
+                  { label: 'Skill Categories', count: skillsData.length, color: '#00E676', text: 'Groups', tabId: 'skills' },
+                  { label: 'Total Messages', count: totalMessages, color: '#FF8C42', text: 'Database', tabId: 'messages' },
+                  { label: 'New Messages', count: newMessages, color: '#FF4FD8', text: 'Unread', tabId: 'messages' },
+                ].map((item, idx) => (
+                  <button 
+                    key={idx}
+                    onClick={() => setActiveTab(item.tabId)}
+                    className="glass-card p-5 rounded-[20px] border border-[#1B2B4D] hover:border-[#00D4FF]/30 transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between text-left cursor-pointer w-full"
+                    style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)', backdropFilter: 'blur(12px)' }}
+                  >
+                    <span 
+                      className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider self-start"
+                      style={{ color: item.color, backgroundColor: `${item.color}15`, border: `1px solid ${item.color}30` }}
+                    >
+                      {item.text}
+                    </span>
+                    <div className="mt-4">
+                      <h3 className="text-3xl font-extrabold text-white">{item.count}</h3>
+                      <p className="text-[10px] text-[#94A3B8] font-bold mt-1 uppercase tracking-wider">{item.label}</p>
+                    </div>
+                  </button>
+                ))}
 
               </div>
 
-              {/* Recent Activity Rows */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* Recent Messages list */}
-                <div className="lg:col-span-7 glass-card p-6 rounded-2xl text-left border border-white/5">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-bold text-white">Recent Messages</h3>
-                    <button onClick={() => setActiveTab('messages')} className="text-xs text-neonBlue hover:underline flex items-center space-x-1">
-                      <span>View All</span>
-                      <ChevronRight className="h-3 w-3" />
-                    </button>
+              {/* Additional Metadata Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="glass-card p-6 rounded-[20px] border border-[#1B2B4D] bg-[#07122B]/35 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs text-[#94A3B8] uppercase font-bold tracking-wider">Profile Updated</p>
+                    <p className="text-sm font-bold text-white">{profileUpdatedDate}</p>
                   </div>
-                  {messages.length === 0 ? (
-                    <p className="text-xs text-gray-500 py-6 text-center">No messages received.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {messages.slice(0, 3).map((msg) => (
-                        <div 
-                          key={msg.id}
-                          onClick={() => setSelectedMessage(msg)}
-                          className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-neonBlue/20 hover:bg-white/[0.08] transition-all duration-200 cursor-pointer flex justify-between items-center group"
-                        >
-                          <div className="space-y-1 pr-4 truncate flex-grow">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-bold text-white group-hover:text-neonBlue transition-colors duration-200">{msg.name}</span>
-                              <span className="text-[10px] text-gray-500 font-semibold">• {msg.date.split(',')[0]}</span>
-                            </div>
-                            <p className="text-xs text-gray-400 truncate">{msg.message}</p>
-                          </div>
-                          <Eye className="h-4 w-4 text-gray-500 group-hover:text-neonBlue shrink-0 ml-2" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <FileText className="h-8 w-8 text-[#00D4FF]/40" />
                 </div>
-
-                {/* Quick Shortcuts */}
-                <div className="lg:col-span-5 glass-card p-6 rounded-2xl text-left border border-white/5 space-y-6">
-                  <h3 className="text-lg font-bold text-white">Console Console</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button 
-                      onClick={() => openProjectModal()}
-                      className="p-4 rounded-xl bg-neonBlue/10 border border-neonBlue/20 text-neonBlue hover:bg-neonBlue/20 transition-all duration-200 font-bold text-xs flex flex-col items-center justify-center space-y-2 cursor-pointer"
-                    >
-                      <Plus className="h-5 w-5" />
-                      <span>Add New Project</span>
-                    </button>
-                    
-                    <button 
-                      onClick={() => openCertModal()}
-                      className="p-4 rounded-xl bg-neonSky/10 border border-neonSky/20 text-neonSky hover:bg-neonSky/20 transition-all duration-200 font-bold text-xs flex flex-col items-center justify-center space-y-2 cursor-pointer"
-                    >
-                      <Plus className="h-5 w-5" />
-                      <span>Add Certificate</span>
-                    </button>
+                <div className="glass-card p-6 rounded-[20px] border border-[#1B2B4D] bg-[#07122B]/35 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs text-[#94A3B8] uppercase font-bold tracking-wider">CV Last Modified</p>
+                    <p className="text-sm font-bold text-white">{cvData.lastUpdated || 'Jun 2026'}</p>
                   </div>
-                  
-                  <div className="bg-white/5 border border-white/5 p-4 rounded-xl space-y-2 text-xs">
-                    <p className="font-bold text-gray-300">Environment System Details</p>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-500">
-                      <span>Server Engine:</span>
-                      <span className="font-mono text-gray-400">NodeJS / ViteDev</span>
-                      <span>CSS Framework:</span>
-                      <span className="font-mono text-gray-400">TailwindCSS 3.x</span>
-                      <span>Database Engine:</span>
-                      <span className="font-mono text-gray-400">LocalStorage / Client</span>
-                    </div>
-                  </div>
+                  <Clock className="h-8 w-8 text-[#3B82F6]/40" />
                 </div>
-
               </div>
 
             </div>
           )}
 
-          {/* TAB 2: PROJECTS MANAGEMENT */}
-          {activeTab === 'projects' && (
-            <div className="space-y-6 text-left">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white">Manage Projects</h3>
-                  <p className="text-xs text-gray-500">Add, edit, or delete portfolio entries visible to visitors.</p>
+          {/* TAB 2: PROFILE */}
+          {activeTab === 'profile' && (
+            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Profile Fields Card */}
+              <div className="lg:col-span-7 glass-card p-6 sm:p-8 rounded-[20px] border border-[#1B2B4D]" style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}>
+                <h3 className="text-lg font-bold text-white mb-6 border-b border-[#1B2B4D]/60 pb-3">Identity Particulars</h3>
+                <form onSubmit={saveProfile} className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Full Name</label>
+                      <input 
+                        type="text" 
+                        value={heroData.name || ''} 
+                        onChange={(e) => setHeroData({...heroData, name: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Hero Title</label>
+                      <input 
+                        type="text" 
+                        value={heroData.title || ''} 
+                        onChange={(e) => setHeroData({...heroData, title: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Role Subtitle</label>
+                    <input 
+                      type="text" 
+                      value={heroData.subtitle || ''} 
+                      onChange={(e) => setHeroData({...heroData, subtitle: e.target.value})}
+                      className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Short Introduction</label>
+                    <textarea 
+                      rows="3"
+                      value={heroData.description || ''} 
+                      onChange={(e) => setHeroData({...heroData, description: e.target.value})}
+                      className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300 resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Phone Number</label>
+                      <input 
+                        type="text" 
+                        value={heroData.phone || ''} 
+                        onChange={(e) => setHeroData({...heroData, phone: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Email Address</label>
+                      <input 
+                        type="email" 
+                        value={heroData.email || ''} 
+                        onChange={(e) => setHeroData({...heroData, email: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">GitHub URL</label>
+                      <input 
+                        type="text" 
+                        value={heroData.githubUrl || ''} 
+                        onChange={(e) => setHeroData({...heroData, githubUrl: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">LinkedIn URL</label>
+                      <input 
+                        type="text" 
+                        value={heroData.linkedinUrl || ''} 
+                        onChange={(e) => setHeroData({...heroData, linkedinUrl: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Avatar Image URL</label>
+                    <input 
+                      type="text" 
+                      value={heroData.avatarUrl || ''} 
+                      onChange={(e) => setHeroData({...heroData, avatarUrl: e.target.value})}
+                      className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-[0_0_15px_rgba(0,212,255,0.2)] hover:shadow-[0_0_25px_rgba(0,212,255,0.45)] transition-all duration-300 cursor-pointer"
+                  >
+                    Update Profile Data
+                  </button>
+                </form>
+              </div>
+
+              {/* LIVE PREVIEW HERO CARD */}
+              <div className="lg:col-span-5 space-y-4">
+                <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider block">Live Identity Card Preview</span>
+                <div 
+                  className="glass-card rounded-[20px] p-6 border border-[#1B2B4D] flex flex-col items-center text-center relative overflow-hidden"
+                  style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)', backdropFilter: 'blur(16px)' }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6]" />
+                  <div className="h-24 w-24 rounded-full border-2 border-[#00D4FF] p-1 flex items-center justify-center overflow-hidden mb-4 shadow-[0_0_15px_rgba(0,212,255,0.3)]">
+                    <img 
+                      src={heroData.avatarUrl || '/profile.jpg'} 
+                      alt="DK"
+                      className="w-full h-full object-cover rounded-full"
+                      onError={(e) => { e.target.src = '/profile.jpg'; }}
+                    />
+                  </div>
+                  <h4 className="text-lg font-bold text-white">{heroData.name || 'Your Name'}</h4>
+                  <span className="text-[10px] font-extrabold tracking-widest text-[#00D4FF] uppercase mt-1">
+                    {heroData.title || 'Role Description'}
+                  </span>
+                  <p className="text-xs text-[#94A3B8] mt-3 leading-relaxed max-w-xs">{heroData.description || 'Quick bio intro'}</p>
+                  
+                  <div className="flex space-x-3.5 mt-5">
+                    <a href={heroData.githubUrl || '#'} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg bg-[#03061B] text-[#94A3B8] hover:text-white border border-[#1B2B4D] transition-colors">
+                      <GithubIcon className="h-4 w-4" />
+                    </a>
+                    <a href={heroData.linkedinUrl || '#'} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg bg-[#03061B] text-[#94A3B8] hover:text-white border border-[#1B2B4D] transition-colors">
+                      <LinkedinIcon className="h-4 w-4" />
+                    </a>
+                  </div>
                 </div>
-                <button
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 3: ABOUT */}
+          {activeTab === 'about' && (
+            <div className="max-w-4xl mx-auto">
+              <div className="glass-card p-6 sm:p-8 rounded-[20px] border border-[#1B2B4D]" style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}>
+                <h3 className="text-lg font-bold text-white mb-6 border-b border-[#1B2B4D]/60 pb-3">About Section Manager</h3>
+                <form onSubmit={saveAbout} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">About Section Heading</label>
+                    <input 
+                      type="text" 
+                      value={aboutData.heading || ''} 
+                      onChange={(e) => setAboutData({...aboutData, heading: e.target.value})}
+                      className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Primary Description Bio</label>
+                    <textarea 
+                      rows="4"
+                      value={aboutData.description || ''} 
+                      onChange={(e) => setAboutData({...aboutData, description: e.target.value})}
+                      className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300 resize-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Additional Bio Text</label>
+                    <textarea 
+                      rows="4"
+                      value={aboutData.additionalText || ''} 
+                      onChange={(e) => setAboutData({...aboutData, additionalText: e.target.value})}
+                      className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300 resize-none"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-[0_0_15px_rgba(0,212,255,0.2)] hover:shadow-[0_0_25px_rgba(0,212,255,0.45)] transition-all duration-300 cursor-pointer"
+                  >
+                    Save About Sections
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: EDUCATION */}
+          {activeTab === 'education' && (
+            <div className="max-w-5xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-[#94A3B8] font-semibold">Manage Academic Qualifications</span>
+                <button 
+                  onClick={() => openEduModal()}
+                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:opacity-95 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Education</span>
+                </button>
+              </div>
+
+              {educationData.length === 0 ? (
+                <div className="text-center py-20 bg-[#07122B]/20 border border-[#1B2B4D] rounded-[20px] text-[#94A3B8]/60 text-sm font-semibold">
+                  No education records logged. Click "Add Education" to add.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {educationData.map((edu, idx) => (
+                    <div 
+                      key={edu.id || idx}
+                      className="glass-card p-6 rounded-[20px] border border-[#1B2B4D] flex flex-col justify-between"
+                      style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}
+                    >
+                      <div>
+                        <div className="flex items-center space-x-3.5 mb-4">
+                          <div className="h-10 w-10 rounded-lg bg-[#03061B] border border-white/5 flex items-center justify-center font-bold text-[#00D4FF] text-xl">
+                            🎓
+                          </div>
+                          <div className="text-left">
+                            <h4 className="text-sm font-bold text-white leading-tight">{edu.institute}</h4>
+                            <span className="text-[10px] font-extrabold tracking-widest text-[#00D4FF] uppercase">{edu.degree}</span>
+                          </div>
+                        </div>
+                        <div className="text-left space-y-1 mt-3">
+                          <p className="text-xs text-[#94A3B8]"><span className="font-bold text-gray-400">Specialization:</span> {edu.specialization || 'N/A'}</p>
+                          <p className="text-xs text-[#94A3B8]"><span className="font-bold text-gray-400">Duration:</span> {edu.duration}</p>
+                          <p className="text-xs text-[#94A3B8]"><span className="font-bold text-gray-400">Status:</span> <span className="text-[#00E676] font-semibold">{edu.status}</span></p>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-2.5 mt-5 pt-3 border-t border-[#1B2B4D]/60">
+                        <button onClick={() => openEduModal(edu)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-[#00D4FF] border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDeleteEdu(edu.id)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-red-400 border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: EXPERIENCE */}
+          {activeTab === 'experience' && (
+            <div className="max-w-5xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-[#94A3B8] font-semibold">Manage Job History and Internship Entries</span>
+                <button 
+                  onClick={() => openExpModal()}
+                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:opacity-95 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Experience</span>
+                </button>
+              </div>
+
+              {experienceData.length === 0 ? (
+                <div className="text-center py-20 bg-[#07122B]/20 border border-[#1B2B4D] rounded-[20px] text-[#94A3B8]/60 text-sm font-semibold">
+                  No experience records logged. Click "Add Experience" to add.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {experienceData.map((exp) => (
+                    <div 
+                      key={exp.id}
+                      className="glass-card p-6 rounded-[20px] border border-[#1B2B4D] flex flex-col justify-between"
+                      style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}
+                    >
+                      <div>
+                        <div className="flex items-center space-x-3.5 mb-4">
+                          <div className="h-10 w-10 rounded-lg bg-[#03061B] border border-white/5 flex items-center justify-center font-bold text-[#00D4FF]">
+                            {exp.logoUrl ? <img src={exp.logoUrl} className="h-full w-full object-cover rounded-lg" alt="" /> : '💼'}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-white">{exp.company}</h4>
+                            <span className="text-[10px] font-extrabold tracking-widest text-[#00D4FF] uppercase">{exp.position}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 font-bold mb-3">{exp.duration}</p>
+                        <p className="text-xs text-[#94A3B8] leading-relaxed mb-4">{exp.description}</p>
+                        <p className="text-[10px] font-bold text-[#3B82F6]">{exp.technologies}</p>
+                      </div>
+
+                      <div className="flex justify-end space-x-2.5 mt-5 pt-3 border-t border-[#1B2B4D]/60">
+                        <button onClick={() => openExpModal(exp)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-[#00D4FF] border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDeleteExp(exp.id)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-red-400 border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 6: PROJECTS */}
+          {activeTab === 'projects' && (
+            <div className="max-w-6xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-[#94A3B8] font-semibold">CMS Projects Manager</span>
+                <button 
                   onClick={() => openProjectModal()}
-                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-neonBlue to-neonSky text-white px-4 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 shadow-[0_0_10px_rgba(0,240,255,0.25)] cursor-pointer"
+                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:opacity-95 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Add Project</span>
                 </button>
               </div>
 
-              {/* Table wrapper */}
-              <div className="glass-card rounded-2xl border border-white/5 overflow-x-auto shadow-xl">
-                <table className="w-full text-left border-collapse min-w-[600px]">
-                  <thead>
-                    <tr className="border-b border-white/10 bg-white/5">
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Title</th>
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Classification</th>
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Technologies</th>
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projects.map((proj) => (
-                      <tr key={proj.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-all duration-200">
-                        <td className="p-4 text-sm font-bold text-white">{proj.title}</td>
-                        <td className="p-4">
-                          <span className="text-[10px] font-extrabold bg-white/5 border border-white/10 text-gray-400 px-2.5 py-1 rounded-md">
-                            {proj.type}
+              {projectsData.length === 0 ? (
+                <div className="text-center py-20 bg-[#07122B]/20 border border-[#1B2B4D] rounded-[20px] text-[#94A3B8]/60 text-sm font-semibold">
+                  No projects logged.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {projectsData.map((project) => (
+                    <div 
+                      key={project.id}
+                      className="glass-card p-5 rounded-[20px] border border-[#1B2B4D] flex flex-col justify-between relative group"
+                      style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}
+                    >
+                      <div>
+                        {/* Header Row */}
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="p-2.5 rounded-lg bg-[#03061B] border border-white/5 text-xl">
+                            {project.icon || '🔍'}
+                          </div>
+                          <span className="text-[9px] font-extrabold tracking-widest text-[#94A3B8]/60 uppercase">
+                            {project.type || project.category}
                           </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {proj.tech.slice(0, 3).map((t, idx) => (
-                              <span key={idx} className="text-[9px] bg-neonBlue/5 border border-neonBlue/10 text-cyan-400 px-2 py-0.5 rounded-md font-semibold">
-                                {t}
-                              </span>
-                            ))}
-                            {proj.tech.length > 3 && (
-                              <span className="text-[9px] text-gray-500 font-bold px-1.5 py-0.5">+{proj.tech.length - 3}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4 text-right">
-                          <div className="inline-flex space-x-2">
-                            <button
-                              onClick={() => openProjectModal(proj)}
-                              className="p-1.5 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-neonBlue hover:border-neonBlue/30 transition-all duration-200 cursor-pointer"
-                              title="Edit"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteProject(proj.id)}
-                              className="p-1.5 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-neonPink hover:border-neonPink/30 transition-all duration-200 cursor-pointer"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                        <h4 className="text-base font-bold text-white">{project.title}</h4>
+                        <p className="text-xs text-[#94A3B8] mt-2 leading-relaxed line-clamp-3">{project.shortDesc || project.description}</p>
+                        
+                        <div className="flex flex-wrap gap-1.5 mt-4">
+                          {(project.tech || []).map((t, idx) => (
+                            <span key={idx} className="text-[10px] bg-[#03061B]/60 text-[#3B82F6] border border-[#3B82F6]/10 px-2 py-0.5 rounded-md font-semibold">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-2.5 mt-6 pt-3 border-t border-[#1B2B4D]/60">
+                        <button onClick={() => openProjectModal(project)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-[#00D4FF] border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDeleteProject(project.id)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-red-400 border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 3: CERTIFICATES MANAGEMENT */}
+          {/* TAB 7: CERTIFICATES */}
           {activeTab === 'certificates' && (
-            <div className="space-y-6 text-left">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white">Manage Certificates</h3>
-                  <p className="text-xs text-gray-500">Edit or append verified technical achievement credentials.</p>
-                </div>
-                <button
+            <div className="max-w-6xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-[#94A3B8] font-semibold">CMS Certificates & Credentials Manager</span>
+                <button 
                   onClick={() => openCertModal()}
-                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-neonBlue to-neonSky text-white px-4 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 shadow-[0_0_10px_rgba(0,240,255,0.25)] cursor-pointer"
+                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:opacity-95 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Add Certificate</span>
                 </button>
               </div>
 
-              {/* Certificates Table */}
-              <div className="glass-card rounded-2xl border border-white/5 overflow-x-auto shadow-xl">
-                <table className="w-full text-left border-collapse min-w-[600px]">
-                  <thead>
-                    <tr className="border-b border-white/10 bg-white/5">
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Credential Title</th>
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Issuer</th>
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Date</th>
-                      <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {certificates.map((cert, index) => (
-                      <tr key={index} className="border-b border-white/5 hover:bg-white/[0.02] transition-all duration-200">
-                        <td className="p-4 text-sm font-bold text-white">{cert.title}</td>
-                        <td className="p-4 text-sm text-gray-300">{cert.issuer}</td>
-                        <td className="p-4 text-sm text-gray-400">{cert.date}</td>
-                        <td className="p-4 text-right">
-                          <div className="inline-flex space-x-2">
-                            <button
-                              onClick={() => openCertModal({ ...cert, index })}
-                              className="p-1.5 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-neonBlue hover:border-neonBlue/30 transition-all duration-200 cursor-pointer"
-                              title="Edit"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCert(index)}
-                              className="p-1.5 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-neonPink hover:border-neonPink/30 transition-all duration-200 cursor-pointer"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+              {certificatesData.length === 0 ? (
+                <div className="text-center py-20 bg-[#07122B]/20 border border-[#1B2B4D] rounded-[20px] text-[#94A3B8]/60 text-sm font-semibold">
+                  No credentials logged.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {certificatesData.map((cert) => (
+                    <div 
+                      key={cert.id}
+                      className="glass-card p-5 rounded-[20px] border border-[#1B2B4D] flex flex-col justify-between"
+                      style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}
+                    >
+                      <div>
+                        <div className="flex items-center space-x-3.5 mb-4">
+                          <div className="p-2.5 rounded-lg bg-[#03061B] border border-white/5 text-xl flex items-center justify-center shrink-0 w-11 h-11">
+                            {cert.icon || '🍃'}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div>
+                            <h4 className="text-sm font-bold text-white">{cert.title}</h4>
+                            <span className="text-[10px] font-extrabold tracking-widest text-[#00E676] uppercase">{cert.issuer}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-[#94A3B8] leading-relaxed line-clamp-3 mb-4">{cert.description}</p>
+                        
+                        <div className="flex flex-wrap gap-1.5">
+                          {(cert.tags || []).map((t, idx) => (
+                            <span key={idx} className="text-[9px] bg-[#03061B]/60 text-[#94A3B8] border border-[#1B2B4D]/60 px-2 py-0.5 rounded-md font-semibold">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-2.5 mt-6 pt-3 border-t border-[#1B2B4D]/60">
+                        <button onClick={() => openCertModal(cert)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-[#00D4FF] border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDeleteCert(cert.id)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-red-400 border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 8: SKILLS */}
+          {activeTab === 'skills' && (
+            <div className="max-w-6xl mx-auto space-y-6">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-[#94A3B8] font-semibold">Manage Skills Categories & Tags</span>
+                <button 
+                  onClick={() => openSkillModal()}
+                  className="inline-flex items-center space-x-2 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:opacity-95 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Skill Group</span>
+                </button>
+              </div>
+
+              {skillsData.length === 0 ? (
+                <div className="text-center py-20 bg-[#07122B]/20 border border-[#1B2B4D] rounded-[20px] text-[#94A3B8]/60 text-sm font-semibold">
+                  No technical skill groups configured.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {skillsData.map((skill, idx) => (
+                    <div 
+                      key={idx}
+                      className="glass-card p-6 rounded-[20px] border border-[#1B2B4D] flex flex-col justify-between"
+                      style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}
+                    >
+                      <div>
+                        <div className="flex items-center space-x-3 mb-4">
+                          <div className="p-2.5 rounded-lg bg-[#03061B] border border-white/5 text-xl flex items-center justify-center shrink-0 w-11 h-11">
+                            {skill.icon || '💻'}
+                          </div>
+                          <h4 className="text-sm font-bold text-white">{skill.category}</h4>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(skill.items || []).map((s, sIdx) => (
+                            <span key={sIdx} className="text-[10px] bg-[#03061B]/60 text-[#3B82F6] border border-[#3B82F6]/10 px-2.5 py-1 rounded-full font-semibold">
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-2.5 mt-6 pt-3 border-t border-[#1B2B4D]/60">
+                        <button onClick={() => openSkillModal({ ...skill, index: idx })} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-[#00D4FF] border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDeleteSkill(idx)} className="p-2 rounded-lg bg-[#03061B]/60 text-gray-400 hover:text-red-400 border border-[#1B2B4D] transition-colors cursor-pointer">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 9: MESSAGES */}
+          {activeTab === 'messages' && (
+            <div className="max-w-6xl mx-auto">
+              
+              <div className="glass-card rounded-[20px] border border-[#1B2B4D] overflow-hidden" style={{ backgroundColor: 'rgba(7, 18, 43, 0.35)', backdropFilter: 'blur(16px)' }}>
+                <div className="p-6 border-b border-[#1B2B4D] text-left">
+                  <h3 className="text-lg font-bold text-white">Contact Forms Database</h3>
+                  <p className="text-xs text-[#94A3B8] mt-0.5">Read, review, and delete form inquiries submitted by recruiters.</p>
+                </div>
+
+                {messages.length === 0 ? (
+                  <div className="text-center py-20 text-[#94A3B8]/60 text-sm font-semibold">
+                    No contact messages found.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[700px]">
+                      <thead>
+                        <tr className="border-b border-[#1B2B4D] bg-[#07122B]/30">
+                          <th className="p-4 text-xs uppercase font-extrabold text-[#94A3B8] tracking-wider pl-6">Status</th>
+                          <th className="p-4 text-xs uppercase font-extrabold text-[#94A3B8] tracking-wider">Sender</th>
+                          <th className="p-4 text-xs uppercase font-extrabold text-[#94A3B8] tracking-wider">Email Address</th>
+                          <th className="p-4 text-xs uppercase font-extrabold text-[#94A3B8] tracking-wider">Message Preview</th>
+                          <th className="p-4 text-xs uppercase font-extrabold text-[#94A3B8] tracking-wider">Date Received</th>
+                          <th className="p-4 text-xs uppercase font-extrabold text-[#94A3B8] tracking-wider text-right pr-6">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {messages.map((msg) => {
+                          const isRead = readMessageIds.includes(msg.id);
+                          const isReplied = repliedMessageIds.includes(msg.id);
+                          return (
+                            <tr key={msg.id} className="border-b border-[#1B2B4D]/30 hover:bg-white/[0.01] transition-all duration-200">
+                              <td className="p-4 pl-6">
+                                <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                                  isReplied 
+                                    ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                                    : isRead 
+                                      ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20' 
+                                      : 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20'
+                                }`}>
+                                  {isReplied ? 'Replied' : isRead ? 'Read' : 'New'}
+                                </span>
+                              </td>
+                              <td className="p-4 text-sm font-bold text-white">{msg.name}</td>
+                              <td className="p-4 text-sm text-gray-300">{msg.email}</td>
+                              <td className="p-4 text-sm text-[#94A3B8] max-w-xs truncate">{msg.message}</td>
+                              <td className="p-4 text-xs text-gray-400">{msg.date}</td>
+                              <td className="p-4 text-right pr-6">
+                                <div className="inline-flex space-x-2">
+                                  <button
+                                    onClick={() => handleViewMessage(msg)}
+                                    className="p-2 rounded-lg bg-[#03061B]/60 border border-[#1B2B4D] text-gray-400 hover:text-[#00D4FF] hover:border-[#00D4FF]/30 transition-all duration-300 cursor-pointer"
+                                    title="View Message"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteMessage(msg.id)}
+                                    className="p-2 rounded-lg bg-[#03061B]/60 border border-[#1B2B4D] text-gray-400 hover:text-[#FF4FD8] hover:border-[#FF4FD8]/30 transition-all duration-300 cursor-pointer"
+                                    title="Delete Message"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* TAB 4: INCOMING MESSAGES LIST */}
-          {activeTab === 'messages' && (
-            <div className="space-y-6 text-left">
-              <div>
-                <h3 className="text-lg font-bold text-white">Contact Messages</h3>
-                <p className="text-xs text-gray-500">View form submissions sent from your portfolio website.</p>
+          {/* TAB 10: ANALYTICS */}
+          {activeTab === 'analytics' && (
+            <div className="max-w-6xl mx-auto space-y-8 text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { title: 'Total Portfolio Visits', value: '1,420', percent: '+18.4%', up: true },
+                  { title: 'Messages Received', value: totalMessages, percent: '+12.5%', up: true },
+                  { title: 'Active Projects', value: projectsData.length, percent: '0.0%', up: false },
+                  { title: 'Verified Credentials', value: certificatesData.length, percent: '0.0%', up: false },
+                ].map((stat, idx) => (
+                  <div key={idx} className="glass-card p-6 rounded-[20px] border border-[#1B2B4D] bg-[#07122B]/35 flex flex-col justify-between h-32">
+                    <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">{stat.title}</span>
+                    <div className="flex justify-between items-baseline mt-4">
+                      <span className="text-3xl font-extrabold text-white">{stat.value}</span>
+                      <span className={`text-xs font-bold ${stat.up ? 'text-[#00E676]' : 'text-gray-500'}`}>{stat.percent}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              {/* Messages Table */}
-              <div className="glass-card rounded-2xl border border-white/5 overflow-x-auto shadow-xl">
-                {messages.length === 0 ? (
-                  <div className="py-16 text-center text-gray-500 text-sm">
-                    No inquiries received yet. Submit a message on the Contact form to test it!
+              {/* Graphical volume Mock */}
+              <div className="glass-card rounded-[20px] border border-[#1B2B4D] p-6 sm:p-8" style={{ backgroundColor: 'rgba(7, 18, 43, 0.35)' }}>
+                <h3 className="text-base font-bold text-white mb-6">Traffic & Messages Timeline</h3>
+                <div className="h-56 w-full relative pt-4 flex items-end">
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 500 200">
+                    <defs>
+                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#00D4FF" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M 0,160 Q 80,120 150,140 T 300,60 T 450,90 T 500,40" fill="none" stroke="url(#chartGrad)" strokeWidth="4" className="stroke-[#00D4FF]" />
+                    <path d="M 0,160 Q 80,120 150,140 T 300,60 T 450,90 T 500,40 L 500,200 L 0,200 Z" fill="url(#chartGrad)" />
+                    <line x1="0" y1="50" x2="500" y2="50" stroke="#1B2B4D" strokeDasharray="4 4" />
+                    <line x1="0" y1="100" x2="500" y2="100" stroke="#1B2B4D" strokeDasharray="4 4" />
+                    <line x1="0" y1="150" x2="500" y2="150" stroke="#1B2B4D" strokeDasharray="4 4" />
+                  </svg>
+                </div>
+                <div className="flex justify-between text-[10px] text-[#94A3B8]/60 font-bold uppercase tracking-wider mt-4">
+                  <span>Jan</span>
+                  <span>Feb</span>
+                  <span>Mar</span>
+                  <span>Apr</span>
+                  <span>May</span>
+                  <span>Jun</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 11: SETTINGS */}
+          {activeTab === 'settings' && (
+            <div className="max-w-3xl mx-auto text-left">
+              <div className="glass-card p-6 sm:p-8 rounded-[20px] border border-[#1B2B4D]" style={{ backgroundColor: 'rgba(7, 18, 43, 0.45)' }}>
+                <div className="mb-6 border-b border-[#1B2B4D]/60 pb-5">
+                  <h3 className="text-lg font-bold text-white">Security Settings</h3>
+                  <p className="text-xs text-[#94A3B8] mt-0.5">Manage administrative credentials and notification profiles.</p>
+                </div>
+
+                {settingsSaved && (
+                  <div className="mb-5 bg-[#00E676]/10 border border-[#00E676]/20 text-[#00E676] p-4 rounded-xl text-xs font-bold flex items-center space-x-2">
+                    <Check className="h-4.5 w-4.5" />
+                    <span>Administrative credentials updated successfully!</span>
                   </div>
-                ) : (
-                  <table className="w-full text-left border-collapse min-w-[600px]">
-                    <thead>
-                      <tr className="border-b border-white/10 bg-white/5">
-                        <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Sender</th>
-                        <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Email Address</th>
-                        <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider">Date Received</th>
-                        <th className="p-4 text-xs uppercase font-extrabold text-gray-400 tracking-wider text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {messages.map((msg) => (
-                        <tr key={msg.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-all duration-200">
-                          <td className="p-4 text-sm font-bold text-white">{msg.name}</td>
-                          <td className="p-4 text-sm text-gray-300">{msg.email}</td>
-                          <td className="p-4 text-xs text-gray-400">{msg.date}</td>
-                          <td className="p-4 text-right">
-                            <div className="inline-flex space-x-2">
-                              <button
-                                onClick={() => setSelectedMessage(msg)}
-                                className="p-1.5 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-neonBlue hover:border-neonBlue/30 transition-all duration-200 cursor-pointer"
-                                title="View Message"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteMessage(msg.id)}
-                                className="p-1.5 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-neonPink hover:border-neonPink/30 transition-all duration-200 cursor-pointer"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 )}
+
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setSettingsSaved(true);
+                    setTimeout(() => setSettingsSaved(false), 3000);
+                  }}
+                  className="space-y-5"
+                >
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Login Email Address</label>
+                    <input 
+                      type="email" 
+                      value={settingsForm.email}
+                      onChange={(e) => setSettingsForm({...settingsForm, email: e.target.value})}
+                      className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">New Password</label>
+                      <input 
+                        type="password" 
+                        placeholder="••••••••"
+                        value={settingsForm.newPassword}
+                        onChange={(e) => setSettingsForm({...settingsForm, newPassword: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Confirm Password</label>
+                      <input 
+                        type="password" 
+                        placeholder="••••••••"
+                        value={settingsForm.confirmPassword}
+                        onChange={(e) => setSettingsForm({...settingsForm, confirmPassword: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="mt-4 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm px-6 py-3 rounded-xl shadow-[0_0_15px_rgba(0,212,255,0.2)] hover:shadow-[0_0_25px_rgba(0,212,255,0.45)] transition-all duration-300 cursor-pointer"
+                  >
+                    Save Settings Changes
+                  </button>
+                </form>
+
+                {/* CV file Configuration Panel */}
+                <div className="mt-10 pt-8 border-t border-[#1B2B4D]/60 space-y-5">
+                  <div>
+                    <h3 className="text-base font-bold text-white">CV Document Settings</h3>
+                    <p className="text-xs text-[#94A3B8] mt-0.5">Configure download file links and CV button text.</p>
+                  </div>
+                  <form onSubmit={saveCV} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">CV URL / Path</label>
+                      <input 
+                        type="text" 
+                        value={cvData.cvUrl || ''} 
+                        onChange={(e) => setCvData({...cvData, cvUrl: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Button Label</label>
+                      <input 
+                        type="text" 
+                        value={cvData.buttonText || ''} 
+                        onChange={(e) => setCvData({...cvData, buttonText: e.target.value})}
+                        className="w-full bg-[#03061B]/60 border border-[#1B2B4D] focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF]/30 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                    <button type="submit" className="bg-[#03061B] hover:bg-[#03061B]/80 text-[#00D4FF] border border-[#00D4FF]/25 font-bold text-xs px-5 py-2.5 rounded-xl transition-all duration-300 cursor-pointer">
+                      Update CV Document Info
+                    </button>
+                  </form>
+                </div>
+
               </div>
             </div>
           )}
@@ -747,82 +1444,49 @@ const AdminDashboard = () => {
 
       {/* --- ADD/EDIT PROJECT MODAL --- */}
       {isProjectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-lg glass-card rounded-2xl border border-white/10 p-6 sm:p-8 animate-scaleUp text-left" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">
-                {editingProject ? 'Edit Project' : 'Add New Project'}
-              </h3>
-              <button 
-                onClick={() => setIsProjectModalOpen(false)} 
-                className="p-1 rounded bg-white/5 text-gray-400 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn" onClick={() => setIsProjectModalOpen(false)}>
+          <div className="relative w-full max-w-lg glass-card rounded-[20px] border border-[#1B2B4D] p-6 sm:p-8 text-left animate-scaleUp" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'rgba(7, 18, 43, 0.75)', boxShadow: '0 0 50px rgba(0, 212, 255, 0.15)' }}>
+            <button onClick={() => setIsProjectModalOpen(false)} className="absolute top-5 right-5 p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer">
+              <X className="h-4.5 w-4.5" />
+            </button>
+            <h3 className="text-lg font-bold text-white mb-5">{editingProject ? 'Edit Project Details' : 'Add New Project'}</h3>
             <form onSubmit={handleSaveProject} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Project Title</label>
-                <input 
-                  type="text" 
-                  value={projectForm.title}
-                  onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
-                  placeholder="e.g. Back2U Lost & Found"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Project Title</label>
+                  <input type="text" required value={projectForm.title} onChange={(e) => setProjectForm({...projectForm, title: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Category</label>
+                  <input type="text" placeholder="MERN Project" value={projectForm.category} onChange={(e) => setProjectForm({...projectForm, category: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Project Classification</label>
-                <select 
-                  value={projectForm.type}
-                  onChange={(e) => setProjectForm({ ...projectForm, type: e.target.value })}
-                  className="w-full bg-[#0b0e17] border border-white/10 rounded-lg p-3 text-sm text-gray-300 focus:outline-none focus:border-neonBlue"
-                >
-                  <option value="MERN Project">MERN Project</option>
-                  <option value="Full-Stack Project">Full-Stack Project</option>
-                  <option value="Mobile App">Mobile App</option>
-                  <option value="Web App">Web App</option>
-                </select>
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Description</label>
+                <textarea rows="3" required value={projectForm.description} onChange={(e) => setProjectForm({...projectForm, description: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all resize-none" />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Technologies (comma separated)</label>
-                <input 
-                  type="text" 
-                  value={projectForm.tech}
-                  onChange={(e) => setProjectForm({ ...projectForm, tech: e.target.value })}
-                  placeholder="e.g. React.js, Express, MongoDB, Node.js"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Image URL</label>
+                  <input type="text" placeholder="/smart-campus.png" value={projectForm.imgUrl} onChange={(e) => setProjectForm({...projectForm, imgUrl: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Project Emoji / Icon</label>
+                  <input type="text" placeholder="🔍" value={projectForm.icon} onChange={(e) => setProjectForm({...projectForm, icon: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Short Description</label>
-                <textarea 
-                  rows="3"
-                  value={projectForm.shortDesc}
-                  onChange={(e) => setProjectForm({ ...projectForm, shortDesc: e.target.value })}
-                  placeholder="Summary of the project..."
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue resize-none"
-                  required
-                />
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Technologies (comma separated)</label>
+                <input type="text" placeholder="React, Node.js, Express" value={projectForm.tech} onChange={(e) => setProjectForm({...projectForm, tech: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
               </div>
-
-              <div className="flex justify-end space-x-3 pt-4 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsProjectModalOpen(false)}
-                  className="px-4 py-2 border border-white/15 text-gray-300 hover:text-white rounded-lg text-xs font-bold hover:bg-white/5"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-neonBlue to-neonSky text-white rounded-lg text-xs font-bold shadow-lg shadow-cyan-500/10 cursor-pointer"
-                >
-                  Save Changes
-                </button>
+              <div className="grid grid-cols-3 gap-2">
+                <input type="text" placeholder="GitHub URL" value={projectForm.githubUrl} onChange={(e) => setProjectForm({...projectForm, githubUrl: e.target.value})} className="col-span-1 bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                <input type="text" placeholder="LinkedIn URL" value={projectForm.linkedinUrl} onChange={(e) => setProjectForm({...projectForm, linkedinUrl: e.target.value})} className="col-span-1 bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                <input type="text" placeholder="Live Demo URL" value={projectForm.liveDemoUrl} onChange={(e) => setProjectForm({...projectForm, liveDemoUrl: e.target.value})} className="col-span-1 bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
               </div>
+              <button type="submit" className="w-full bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm py-3 rounded-xl transition-all cursor-pointer mt-4">
+                Save Project Changes
+              </button>
             </form>
           </div>
         </div>
@@ -830,133 +1494,250 @@ const AdminDashboard = () => {
 
       {/* --- ADD/EDIT CERTIFICATE MODAL --- */}
       {isCertModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-lg glass-card rounded-2xl border border-white/10 p-6 sm:p-8 animate-scaleUp text-left" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">
-                {editingCert ? 'Edit Certificate' : 'Add Certificate'}
-              </h3>
-              <button 
-                onClick={() => setIsCertModalOpen(false)} 
-                className="p-1 rounded bg-white/5 text-gray-400 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn" onClick={() => setIsCertModalOpen(false)}>
+          <div className="relative w-full max-w-lg glass-card rounded-[20px] border border-[#1B2B4D] p-6 sm:p-8 text-left animate-scaleUp" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'rgba(7, 18, 43, 0.75)', boxShadow: '0 0 50px rgba(0, 212, 255, 0.15)' }}>
+            <button onClick={() => setIsCertModalOpen(false)} className="absolute top-5 right-5 p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer">
+              <X className="h-4.5 w-4.5" />
+            </button>
+            <h3 className="text-lg font-bold text-white mb-5">{editingCert ? 'Edit Credential Details' : 'Add New Certificate'}</h3>
             <form onSubmit={handleSaveCert} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Credential Name</label>
-                <input 
-                  type="text" 
-                  value={certForm.title}
-                  onChange={(e) => setCertForm({ ...certForm, title: e.target.value })}
-                  placeholder="e.g. MongoDB Atlas Administrator Path"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Title</label>
+                  <input type="text" required value={certForm.title} onChange={(e) => setCertForm({...certForm, title: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Issuer</label>
+                  <input type="text" required value={certForm.issuer} onChange={(e) => setCertForm({...certForm, issuer: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Issuing Authority</label>
-                <input 
-                  type="text" 
-                  value={certForm.issuer}
-                  onChange={(e) => setCertForm({ ...certForm, issuer: e.target.value })}
-                  placeholder="e.g. MongoDB Inc."
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Date / Year</label>
+                  <input type="text" value={certForm.date} onChange={(e) => setCertForm({...certForm, date: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Credential Icon (Emoji)</label>
+                  <input type="text" placeholder="🍃" value={certForm.icon} onChange={(e) => setCertForm({...certForm, icon: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Skills Validated (comma separated)</label>
-                <input 
-                  type="text" 
-                  value={certForm.skillsEarned}
-                  onChange={(e) => setCertForm({ ...certForm, skillsEarned: e.target.value })}
-                  placeholder="e.g. MongoDB, Cloud Database, NoSQL"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue"
-                />
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Description</label>
+                <textarea rows="3" value={certForm.description} onChange={(e) => setCertForm({...certForm, description: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all resize-none" />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase">Date Earned / Year</label>
-                <input 
-                  type="text" 
-                  value={certForm.date}
-                  onChange={(e) => setCertForm({ ...certForm, date: e.target.value })}
-                  placeholder="e.g. 2025"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-neonBlue focus:ring-1 focus:ring-neonBlue"
-                />
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Tags / Skills (comma separated)</label>
+                <input type="text" placeholder="NoSQL, Databases, Cloud" value={certForm.tags} onChange={(e) => setCertForm({...certForm, tags: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
               </div>
-
-              <div className="flex justify-end space-x-3 pt-4 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsCertModalOpen(false)}
-                  className="px-4 py-2 border border-white/15 text-gray-300 hover:text-white rounded-lg text-xs font-bold hover:bg-white/5"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-neonBlue to-neonSky text-white rounded-lg text-xs font-bold shadow-lg shadow-cyan-500/10 cursor-pointer"
-                >
-                  Save Credentials
-                </button>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="Credential Link" value={certForm.link} onChange={(e) => setCertForm({...certForm, link: e.target.value})} className="bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                <input type="text" placeholder="LinkedIn URL" value={certForm.linkedinUrl} onChange={(e) => setCertForm({...certForm, linkedinUrl: e.target.value})} className="bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
               </div>
+              <button type="submit" className="w-full bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm py-3 rounded-xl transition-all cursor-pointer mt-4">
+                Save Credential Changes
+              </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* --- INQUIRY VIEW DETAILED MODAL --- */}
-      {selectedMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="relative w-full max-w-lg glass-card rounded-2xl border border-white/10 p-6 sm:p-8 animate-scaleUp text-left" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded bg-neonBlue/10 border border-neonBlue/20 text-neonBlue">
-                  <Mail className="h-4 w-4" />
+      {/* --- ADD/EDIT SKILL CATEGORY MODAL --- */}
+      {isSkillModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn" onClick={() => setIsSkillModalOpen(false)}>
+          <div className="relative w-full max-w-md glass-card rounded-[20px] border border-[#1B2B4D] p-6 sm:p-8 text-left animate-scaleUp" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'rgba(7, 18, 43, 0.75)', boxShadow: '0 0 50px rgba(0, 212, 255, 0.15)' }}>
+            <button onClick={() => setIsSkillModalOpen(false)} className="absolute top-5 right-5 p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer">
+              <X className="h-4.5 w-4.5" />
+            </button>
+            <h3 className="text-lg font-bold text-white mb-5">{editingSkill ? 'Edit Skill Group' : 'Add New Skill Group'}</h3>
+            <form onSubmit={handleSaveSkill} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Category Title</label>
+                <input type="text" required placeholder="Frontend Development" value={skillForm.category} onChange={(e) => setSkillForm({...skillForm, category: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Group Icon (Emoji)</label>
+                  <input type="text" placeholder="💻" value={skillForm.icon} onChange={(e) => setSkillForm({...skillForm, icon: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
                 </div>
-                <h3 className="text-lg font-bold text-white">Inquiry Details</h3>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Accent Color</label>
+                  <input type="color" value={skillForm.accentColor} onChange={(e) => setSkillForm({...skillForm, accentColor: e.target.value})} className="w-full h-11 bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-2 focus:outline-none transition-all cursor-pointer" />
+                </div>
               </div>
-              <button 
-                onClick={() => setSelectedMessage(null)} 
-                className="p-1 rounded bg-white/5 text-gray-400 hover:text-white"
-              >
-                <X className="h-5 w-5" />
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Skills List (comma separated)</label>
+                <textarea rows="3" required placeholder="React, HTML5, CSS3, Tailwind CSS" value={skillForm.items} onChange={(e) => setSkillForm({...skillForm, items: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all resize-none" />
+              </div>
+              <button type="submit" className="w-full bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm py-3 rounded-xl transition-all cursor-pointer mt-4">
+                Save Skill Group
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- ADD/EDIT EXPERIENCE MODAL --- */}
+      {isExpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn" onClick={() => setIsExpModalOpen(false)}>
+          <div className="relative w-full max-w-lg glass-card rounded-[20px] border border-[#1B2B4D] p-6 sm:p-8 text-left animate-scaleUp" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'rgba(7, 18, 43, 0.75)', boxShadow: '0 0 50px rgba(0, 212, 255, 0.15)' }}>
+            <button onClick={() => setIsExpModalOpen(false)} className="absolute top-5 right-5 p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer">
+              <X className="h-4.5 w-4.5" />
+            </button>
+            <h3 className="text-lg font-bold text-white mb-5">{editingExp ? 'Edit Experience' : 'Add Experience Record'}</h3>
+            <form onSubmit={handleSaveExp} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Company Name</label>
+                  <input type="text" required value={expForm.company} onChange={(e) => setExpForm({...expForm, company: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Position Title</label>
+                  <input type="text" required placeholder="Software Engineer Intern" value={expForm.position} onChange={(e) => setExpForm({...expForm, position: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Duration</label>
+                  <input type="text" placeholder="6 Months (2025)" value={expForm.duration} onChange={(e) => setExpForm({...expForm, duration: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Company Logo URL</label>
+                  <input type="text" value={expForm.logoUrl} onChange={(e) => setExpForm({...expForm, logoUrl: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Job Description / Responsibilities</label>
+                <textarea rows="3" required value={expForm.description} onChange={(e) => setExpForm({...expForm, description: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all resize-none" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Technologies Used</label>
+                <input type="text" placeholder="React, Spring Boot, MySQL" value={expForm.technologies} onChange={(e) => setExpForm({...expForm, technologies: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+              </div>
+              <button type="submit" className="w-full bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm py-3 rounded-xl transition-all cursor-pointer mt-4">
+                Save Experience Record
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- ADD/EDIT EDUCATION MODAL --- */}
+      {isEduModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn" onClick={() => setIsEduModalOpen(false)}>
+          <div className="relative w-full max-w-lg glass-card rounded-[20px] border border-[#1B2B4D] p-6 sm:p-8 text-left animate-scaleUp" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'rgba(7, 18, 43, 0.75)', boxShadow: '0 0 50px rgba(0, 212, 255, 0.15)' }}>
+            <button onClick={() => setIsEduModalOpen(false)} className="absolute top-5 right-5 p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer">
+              <X className="h-4.5 w-4.5" />
+            </button>
+            <h3 className="text-lg font-bold text-white mb-5">{editingEdu ? 'Edit Academic Entry' : 'Add Academic Entry'}</h3>
+            <form onSubmit={handleSaveEdu} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Institution / University</label>
+                <input type="text" required value={eduForm.institute} onChange={(e) => setEduForm({...eduForm, institute: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Degree / Qualification</label>
+                  <input type="text" required placeholder="BSc (Hons) in Information Technology" value={eduForm.degree} onChange={(e) => setEduForm({...eduForm, degree: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Specialization</label>
+                  <input type="text" placeholder="Information Technology" value={eduForm.specialization} onChange={(e) => setEduForm({...eduForm, specialization: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Year / Semester / Duration</label>
+                  <input type="text" required placeholder="Year 3 Semester 2 (or 2022 - 2026)" value={eduForm.duration} onChange={(e) => setEduForm({...eduForm, duration: e.target.value})} className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase font-bold text-[#94A3B8] tracking-wider">Academic Status</label>
+                  <select 
+                    value={eduForm.status || 'Active'} 
+                    onChange={(e) => setEduForm({...eduForm, status: e.target.value})} 
+                    className="w-full bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all cursor-pointer"
+                  >
+                    <option value="Active" className="bg-[#07122B] text-white">Active</option>
+                    <option value="Completed" className="bg-[#07122B] text-white">Completed</option>
+                    <option value="On Hold" className="bg-[#07122B] text-white">On Hold</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white font-bold text-sm py-3 rounded-xl transition-all cursor-pointer mt-4">
+                Save Academic Entry
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGE DETAILS MODAL */}
+      {selectedMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn" onClick={() => { setSelectedMessage(null); setIsReplying(false); }}>
+          <div 
+            className="relative w-full max-w-xl glass-card rounded-[20px] border border-[#1B2B4D] p-6 sm:p-8 text-left animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: 'rgba(7, 18, 43, 0.8)', boxShadow: '0 0 50px rgba(0, 212, 255, 0.15)' }}
+          >
+            <button onClick={() => { setSelectedMessage(null); setIsReplying(false); }} className="absolute top-5 right-5 p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer">
+              <X className="h-4.5 w-4.5" />
+            </button>
+
+            <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-[#1B2B4D]">
+              <div className="p-3 rounded-xl bg-[#00D4FF]/10 border border-[#00D4FF]/20 shadow-[0_0_10px_rgba(0,212,255,0.15)] flex items-center justify-center">
+                <User className="h-5 w-5 text-[#00D4FF]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">{selectedMessage.name}</h3>
+                <p className="text-xs text-[#94A3B8] font-semibold">{selectedMessage.email}</p>
+              </div>
             </div>
-            
-            <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-2 py-2 border-b border-white/5">
-                <span className="font-extrabold text-gray-500 uppercase text-[10px] flex items-center"><User className="h-3.5 w-3.5 mr-1" /> Sender</span>
-                <span className="col-span-2 text-white font-bold">{selectedMessage.name}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 py-2 border-b border-white/5">
-                <span className="font-extrabold text-gray-500 uppercase text-[10px] flex items-center"><Mail className="h-3.5 w-3.5 mr-1" /> Email</span>
-                <span className="col-span-2 text-neonBlue break-all">{selectedMessage.email}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 py-2 border-b border-white/5">
-                <span className="font-extrabold text-gray-500 uppercase text-[10px] flex items-center"><Clock className="h-3.5 w-3.5 mr-1" /> Timestamp</span>
-                <span className="col-span-2 text-gray-300">{selectedMessage.date}</span>
-              </div>
-              
-              <div className="space-y-2 pt-2 text-left">
-                <span className="font-extrabold text-gray-500 uppercase text-[10px]">Message Body</span>
-                <p className="p-4 rounded-xl bg-white/5 border border-white/5 text-gray-300 leading-relaxed max-h-[200px] overflow-y-auto">
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-[#94A3B8]/60 tracking-wider">Inquiry Body</span>
+                <div className="bg-[#03061B]/60 border border-[#1B2B4D] rounded-xl p-4 text-sm text-gray-200 leading-relaxed min-h-[100px] max-h-[160px] overflow-y-auto">
                   {selectedMessage.message}
-                </p>
+                </div>
               </div>
 
-              <div className="flex justify-end pt-4 border-t border-white/10">
-                <a
-                  href={`mailto:${selectedMessage.email}?subject=Re: Inquiry from portfolio`}
-                  className="px-4 py-2 bg-neonBlue/10 border border-neonBlue/20 text-neonBlue hover:bg-neonBlue/20 rounded-lg text-xs font-bold transition-all duration-200"
-                >
-                  Reply via Email
-                </a>
+              <div className="flex items-center space-x-2 text-xs text-gray-500 font-semibold">
+                <Clock className="h-4 w-4" />
+                <span>Submitted on {selectedMessage.date}</span>
               </div>
+
+              {isReplying ? (
+                <form onSubmit={handleReplyMessage} className="mt-4 pt-4 border-t border-[#1B2B4D]/60 space-y-3">
+                  <span className="text-[10px] uppercase font-bold text-[#00D4FF] tracking-wider block">Write Email Reply</span>
+                  <textarea 
+                    rows="3" 
+                    required 
+                    value={replyText} 
+                    onChange={(e) => setReplyText(e.target.value)} 
+                    placeholder="Write your professional response here..."
+                    className="w-full bg-[#03061B]/80 border border-[#1B2B4D] rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#00D4FF] transition-all resize-none"
+                  />
+                  <div className="flex justify-end space-x-2">
+                    <button type="button" onClick={() => setIsReplying(false)} className="px-3.5 py-2 rounded-xl border border-white/10 text-xs font-bold text-gray-400 hover:text-white cursor-pointer">
+                      Cancel
+                    </button>
+                    <button type="submit" className="inline-flex items-center space-x-2 bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] text-white font-bold text-xs px-4 py-2 rounded-xl cursor-pointer">
+                      <Send className="h-3.5 w-3.5" />
+                      <span>Send Draft</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="mt-8 flex justify-end space-x-3 pt-4 border-t border-[#1B2B4D]">
+                  <button onClick={() => setIsReplying(true)} className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00D4FF] to-[#3B82F6] hover:opacity-95 text-white text-sm font-bold shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all cursor-pointer">
+                    Reply
+                  </button>
+                  <button onClick={() => handleDeleteMessage(selectedMessage.id)} className="px-4 py-2.5 rounded-xl border border-[#FF4FD8]/30 bg-[#FF4FD8]/5 hover:bg-[#FF4FD8]/15 text-sm font-bold text-[#FF4FD8] transition-all cursor-pointer">
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
+
           </div>
         </div>
       )}

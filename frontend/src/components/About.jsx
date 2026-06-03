@@ -2,8 +2,14 @@ import React from 'react';
 import { Laptop, Rocket, Sprout } from 'lucide-react';
 import { portfolioData } from '../data/portfolioData';
 
+import { useCMSData } from '../utils/cmsHelper';
+
 const About = () => {
-  const { heading, description, additionalText, focusAreas } = portfolioData.about;
+  const aboutData = useCMSData('about');
+  const { heading, description, additionalText, focusAreas } = aboutData;
+
+  const heroData = useCMSData('hero');
+  const name = heroData.name || "Diyana Kumarasinghe";
 
   const renderIcon = (name) => {
     switch (name) {
@@ -50,7 +56,7 @@ const About = () => {
           {/* Biography Text Column */}
           <div className="lg:col-span-7 space-y-6 text-left">
             <h3 className="text-2xl font-bold text-[#F8FAFC]">
-              Who is <span className="text-[#38BDF8]">Diyana Kumarasinghe?</span>
+              Who is <span className="text-[#38BDF8]">{name}?</span>
             </h3>
             <p className="text-[#94A3B8] leading-relaxed text-sm sm:text-base">
               {description}

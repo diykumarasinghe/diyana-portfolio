@@ -34,8 +34,12 @@ const LinkedinIcon = ({ className = "h-4 w-4" }) => (
   </svg>
 );
 
+import { useCMSData } from '../utils/cmsHelper';
+
 const Footer = () => {
-  const { name, githubUrl, linkedinUrl } = portfolioData.hero;
+  const { name, githubUrl, linkedinUrl, title } = useCMSData('hero');
+
+  const logoName = name ? (name.split(' ').find(part => !part.includes('.')) || name.split(' ')[0]) : "Diyana";
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -52,9 +56,9 @@ const Footer = () => {
           {/* Logo */}
           <div className="text-left">
             <h3 className="text-lg font-bold text-white tracking-wide">
-              Diyana<span className="text-[#38BDF8]">.</span>
+              {logoName}<span className="text-[#38BDF8]">.</span>
             </h3>
-            <p className="text-[10px] text-[#94A3B8]/60 mt-0.5">Full-Stack Developer</p>
+            <p className="text-[10px] text-[#94A3B8]/60 mt-0.5">{title || "Full-Stack Developer"}</p>
           </div>
 
           {/* Copyrights */}

@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Sun, Moon } from 'lucide-react';
+import { useCMSData } from '../utils/cmsHelper';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
+  const { name } = useCMSData('hero');
+  const logoName = name ? (name.split(' ').find(part => !part.includes('.')) || name.split(' ')[0]) : "Diyana";
+
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+    } else {
+      root.classList.remove('light');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const navLinks = [
     { name: 'Home', href: '#home', id: 'home' },
@@ -60,7 +77,7 @@ const Navbar = () => {
             onClick={(e) => handleLinkClick(e, 'home')}
             className="text-2xl font-extrabold text-white"
           >
-            Diyana<span className="text-[#38BDF8]">.</span>
+            {logoName}<span className="text-[#38BDF8]">.</span>
           </a>
         </div>
 
@@ -83,19 +100,36 @@ const Navbar = () => {
           ))}
         </div>
 
-        {/* Right side Green Pill */}
-        <div className="hidden md:flex items-center space-x-2 bg-[#22C55E]/10 border border-[#22C55E]/30 px-3.5 py-1 rounded-full">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22C55E] opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22C55E]"></span>
-          </span>
-          <span className="text-xs font-semibold text-[#22C55E] tracking-wide">
-            Available for Internships
-          </span>
+        {/* Right side Green Pill & Theme Toggle */}
+        <div className="hidden md:flex items-center space-x-4">
+          <div className="flex items-center space-x-2 bg-[#22C55E]/10 border border-[#22C55E]/30 px-3.5 py-1 rounded-full">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22C55E] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22C55E]"></span>
+            </span>
+            <span className="text-xs font-semibold text-[#22C55E] tracking-wide">
+              Available for Internships
+            </span>
+          </div>
+
+          <button
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-slate-200 transition-all duration-200 cursor-pointer flex items-center justify-center shadow-sm w-9 h-9 html-light-theme-btn"
+            aria-label="Toggle Theme"
+          >
+            {theme === 'light' ? <Moon className="h-4.5 w-4.5 text-slate-700" /> : <Sun className="h-4.5 w-4.5 text-amber-400" />}
+          </button>
         </div>
 
         {/* Mobile menu toggle */}
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center space-x-2">
+          <button
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-slate-200 transition-all duration-200 cursor-pointer flex items-center justify-center shadow-sm w-9 h-9 mr-1"
+            aria-label="Toggle Theme"
+          >
+            {theme === 'light' ? <Moon className="h-4.5 w-4.5 text-slate-700" /> : <Sun className="h-4.5 w-4.5 text-amber-400" />}
+          </button>
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="text-[#94A3B8] hover:text-white p-2 rounded-md focus:outline-none"
@@ -125,9 +159,18 @@ const Navbar = () => {
               {link.name}
             </a>
           ))}
-          <div className="pt-4 border-t border-white/5 flex items-center space-x-2 px-4">
-            <span className="h-2 w-2 rounded-full bg-[#22C55E]"></span>
-            <span className="text-sm font-semibold text-[#22C55E]">Available for Internships</span>
+          <div className="pt-4 border-t border-white/5 flex items-center justify-between px-4">
+            <div className="flex items-center space-x-2">
+              <span className="h-2 w-2 rounded-full bg-[#22C55E]"></span>
+              <span className="text-sm font-semibold text-[#22C55E]">Available for Internships</span>
+            </div>
+            <button
+              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+              className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-slate-200 transition-all duration-200 cursor-pointer flex items-center justify-center shadow-sm w-9 h-9"
+              aria-label="Toggle Theme"
+            >
+              {theme === 'light' ? <Moon className="h-4.5 w-4.5 text-slate-700" /> : <Sun className="h-4.5 w-4.5 text-amber-400" />}
+            </button>
           </div>
         </div>
       </div>
