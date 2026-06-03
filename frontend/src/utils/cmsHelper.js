@@ -1,18 +1,30 @@
 import { useState, useEffect } from 'react';
 import { portfolioData } from '../data/portfolioData';
 
-// Retrieves a section from localStorage, falling back to portfolioData defaults
-export const getCMSData = (key) => {
-  const local = localStorage.getItem(`cms_${key}`);
+// Helper to get all CMS data from the single localStorage key
+const getPortfolioCMS = () => {
+  const local = localStorage.getItem('portfolioCMS');
   if (local) {
     try {
       return JSON.parse(local);
     } catch (e) {
-      console.error(`Error parsing cms_${key}`, e);
+      console.error('Error parsing portfolioCMS from localStorage', e);
     }
   }
+  return {};
+};
 
-  // Fallback defaults if not set in localStorage yet
+// Retrieves a section from the unified portfolioCMS cache, falling back to defaults
+export const getCMSData = (key, defaultValue) => {
+  const cms = getPortfolioCMS();
+  if (cms && cms[key] !== undefined && cms[key] !== null) {
+    return cms[key];
+  }
+  if (defaultValue !== undefined) {
+    return defaultValue;
+  }
+
+  // Fallback defaults if not cached in localStorage yet
   let defaultData;
   switch (key) {
     case 'hero':
@@ -84,21 +96,40 @@ export const getCMSData = (key) => {
     case 'skills':
       defaultData = portfolioData.skills;
       break;
+    case 'profile':
+      defaultData = {
+        name: portfolioData.hero.name,
+        title: portfolioData.hero.title,
+        avatarUrl: '/profile.jpg'
+      };
+      break;
+    case 'contact':
+      defaultData = {
+        phone: portfolioData.contact.phone || '+94 76 727 0603',
+        email: portfolioData.hero.email || 'diykumarasinghe14@gmail.com'
+      };
+      break;
     default:
       defaultData = {};
   }
 
-  localStorage.setItem(`cms_${key}`, JSON.stringify(defaultData));
+  // Update local cache
+  cms[key] = defaultData;
+  localStorage.setItem('portfolioCMS', JSON.stringify(cms));
   return defaultData;
 };
 
-// Saves a section locally and asynchronously pushes to MongoDB in the background
+// Saves a section locally in portfolioCMS and asynchronously pushes to MongoDB in the background
 export const saveCMSData = async (key, data) => {
-  // Save locally first for instant reactive update in the browser
-  localStorage.setItem(`cms_${key}`, JSON.stringify(data));
+  // Update local cache first
+  const cms = getPortfolioCMS();
+  cms[key] = data;
+  localStorage.setItem('portfolioCMS', JSON.stringify(cms));
+  
+  // Dispatch event for UI reactivity
   window.dispatchEvent(new Event('storage_update'));
 
-  // Sync to MongoDB in the background if logged in as Admin
+  // Push updates to MongoDB
   const token = localStorage.getItem('adminToken');
   if (!token) return;
 
@@ -113,19 +144,18 @@ export const saveCMSData = async (key, data) => {
       body: JSON.stringify({ data })
     });
     if (!response.ok) {
-      console.error(`Failed to sync ${key} to MongoDB database`);
+      console.error(`Failed to sync key: ${key} to MongoDB`);
     }
   } catch (error) {
-    console.error(`Error syncing ${key} to MongoDB:`, error);
+    console.error(`Error syncing key: ${key} to MongoDB:`, error);
   }
 };
 
-// Global flags to prevent duplicate bulk fetches
+// Fetch all CMS data from MongoDB in a single request and update local storage
 let isFetchingAll = false;
 let allFetched = false;
 
-// Fetches all CMS keys from MongoDB in a single request and caches them
-const fetchAllCMSData = async () => {
+export const fetchAllCMSData = async () => {
   if (isFetchingAll || allFetched) return;
   isFetchingAll = true;
 
@@ -134,9 +164,14 @@ const fetchAllCMSData = async () => {
     const response = await fetch(`${API_URL}/api/cms`);
     if (response.ok) {
       const allData = await response.json();
+      const cms = getPortfolioCMS();
+      
+      // Update cache with all database records
       Object.keys(allData).forEach(key => {
-        localStorage.setItem(`cms_${key}`, JSON.stringify(allData[key]));
+        cms[key] = allData[key];
       });
+      
+      localStorage.setItem('portfolioCMS', JSON.stringify(cms));
       allFetched = true;
       window.dispatchEvent(new Event('storage_update'));
     }
@@ -147,17 +182,17 @@ const fetchAllCMSData = async () => {
   }
 };
 
-// Custom React hook to retrieve dynamic CMS data reactively and fetch updates in background
-export const useCMSData = (key) => {
-  const [data, setData] = useState(() => getCMSData(key));
+// React hook to fetch dynamic CMS data reactively
+export const useCMSData = (key, defaultValue) => {
+  const [data, setData] = useState(() => getCMSData(key, defaultValue));
 
   useEffect(() => {
-    // Initiate background sync on mount
+    // Trigger bulk fetch on mount
     fetchAllCMSData();
 
     const handleStorageChange = (e) => {
-      if (!e || e.key === `cms_${key}` || e.type === 'storage_update') {
-        setData(getCMSData(key));
+      if (!e || e.key === 'portfolioCMS' || e.type === 'storage_update') {
+        setData(getCMSData(key, defaultValue));
       }
     };
 
@@ -167,7 +202,7 @@ export const useCMSData = (key) => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('storage_update', handleStorageChange);
     };
-  }, [key]);
+  }, [key, defaultValue]);
 
   return data;
 };
