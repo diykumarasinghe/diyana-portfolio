@@ -63,8 +63,11 @@ app.use("/api/messages", messageRoutes);
 
 // Health check route
 app.get("/", (req, res) => {
+  const mongoose = require('mongoose');
   res.status(200).json({
-    message: "Diyana Portfolio Backend API is running"
+    message: "Diyana Portfolio Backend API is running",
+    dbState: mongoose.connection.readyState,
+    hasMongoUri: !!process.env.MONGO_URI
   });
 });
 
