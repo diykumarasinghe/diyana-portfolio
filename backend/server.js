@@ -11,27 +11,7 @@ connectDB();
 
 const app = express();
 
-// Manual CORS headers - must be first middleware
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  const allowed = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "https://diyana-portfolio-phi.vercel.app"
-  ];
-  if (!origin || allowed.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  }
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PATCH");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-  next();
-});
-
-// cors() package as backup
+// CORS configuration
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
@@ -47,7 +27,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
@@ -63,11 +43,8 @@ app.use("/api/messages", messageRoutes);
 
 // Health check route
 app.get("/", (req, res) => {
-  const mongoose = require('mongoose');
   res.status(200).json({
-    message: "Diyana Portfolio Backend API is running",
-    dbState: mongoose.connection.readyState,
-    hasMongoUri: !!process.env.MONGO_URI
+    message: "Diyana Portfolio Backend API is running"
   });
 });
 

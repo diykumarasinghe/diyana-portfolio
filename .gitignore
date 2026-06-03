@@ -5,3 +5,5 @@ dist/
 frontend/dist/
 .env
 .env.local
+
+.vercel
