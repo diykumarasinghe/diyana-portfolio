@@ -68,6 +68,19 @@ const Certificates = () => {
               </div>
             </div>
 
+            {/* View Certificate Button */}
+            <div className="w-full sm:w-auto flex justify-end mt-6 sm:mt-0 pl-2 sm:pl-0 sm:absolute sm:bottom-8 sm:right-8">
+              <a
+                href="https://www.linkedin.com/posts/diyana-kumarasinghe-2794ab215_mongodb-mongodbatlas-databasemanagement-share-7465684827225104385-4A6-/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center space-x-1.5 border border-[#38BDF8]/30 hover:border-[#38BDF8]/60 bg-[#38BDF8]/5 hover:bg-[#38BDF8]/10 text-[#38BDF8] hover:text-white font-bold text-xs sm:text-sm px-4 py-2 sm:px-5 sm:py-2.5 rounded-[10px] sm:rounded-[12px] transition-all duration-300 cursor-pointer shadow-[0_0_10px_rgba(56,189,248,0.05)] hover:shadow-[0_0_15px_rgba(56,189,248,0.25)]"
+              >
+                <span>View Certificate</span>
+                <span className="text-xs">↗</span>
+              </a>
+            </div>
+
           </div>
         </div>
 

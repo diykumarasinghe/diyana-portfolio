@@ -69,7 +69,7 @@ export const portfolioData = {
     },
     {
       category: "Tools & Technologies",
-      items: ["Git", "GitHub", "Postman", "VS Code", "Android Studio", "Vite", "MERN Stack"],
+      items: ["GitHub", "Postman", "VS Code", "Android Studio", "Vite", "MERN Stack"],
       color: "border-pink-500",
       textColor: "text-pink-400"
     }
