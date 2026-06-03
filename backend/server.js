@@ -49,10 +49,12 @@ app.use((req, res, next) => {
 // Import Routes
 const messageRoutes = require('./routes/messageRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const cmsRoutes = require('./routes/cmsRoutes');
 
 // Mount Routes
 app.use("/api/admin", adminRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/cms", cmsRoutes);
 
 // Health check route
 app.get("/", (req, res) => {

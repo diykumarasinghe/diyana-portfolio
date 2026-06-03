@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { portfolioData } from '../data/portfolioData';
 
+// Retrieves a section from localStorage, falling back to portfolioData defaults
 export const getCMSData = (key) => {
   const local = localStorage.getItem(`cms_${key}`);
   if (local) {
@@ -91,18 +92,70 @@ export const getCMSData = (key) => {
   return defaultData;
 };
 
-export const saveCMSData = (key, data) => {
+// Saves a section locally and asynchronously pushes to MongoDB in the background
+export const saveCMSData = async (key, data) => {
+  // Save locally first for instant reactive update in the browser
   localStorage.setItem(`cms_${key}`, JSON.stringify(data));
-  // Dispatches a custom storage event to ensure reactivity works in the current window too
   window.dispatchEvent(new Event('storage_update'));
+
+  // Sync to MongoDB in the background if logged in as Admin
+  const token = localStorage.getItem('adminToken');
+  if (!token) return;
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  try {
+    const response = await fetch(`${API_URL}/api/cms/${key}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ data })
+    });
+    if (!response.ok) {
+      console.error(`Failed to sync ${key} to MongoDB database`);
+    }
+  } catch (error) {
+    console.error(`Error syncing ${key} to MongoDB:`, error);
+  }
 };
 
+// Global flags to prevent duplicate bulk fetches
+let isFetchingAll = false;
+let allFetched = false;
+
+// Fetches all CMS keys from MongoDB in a single request and caches them
+const fetchAllCMSData = async () => {
+  if (isFetchingAll || allFetched) return;
+  isFetchingAll = true;
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  try {
+    const response = await fetch(`${API_URL}/api/cms`);
+    if (response.ok) {
+      const allData = await response.json();
+      Object.keys(allData).forEach(key => {
+        localStorage.setItem(`cms_${key}`, JSON.stringify(allData[key]));
+      });
+      allFetched = true;
+      window.dispatchEvent(new Event('storage_update'));
+    }
+  } catch (error) {
+    console.error('Error fetching CMS data from MongoDB:', error);
+  } finally {
+    isFetchingAll = false;
+  }
+};
+
+// Custom React hook to retrieve dynamic CMS data reactively and fetch updates in background
 export const useCMSData = (key) => {
   const [data, setData] = useState(() => getCMSData(key));
 
   useEffect(() => {
+    // Initiate background sync on mount
+    fetchAllCMSData();
+
     const handleStorageChange = (e) => {
-      // Handles native cross-tab changes OR our custom window-level event
       if (!e || e.key === `cms_${key}` || e.type === 'storage_update') {
         setData(getCMSData(key));
       }
@@ -118,4 +171,3 @@ export const useCMSData = (key) => {
 
   return data;
 };
-
