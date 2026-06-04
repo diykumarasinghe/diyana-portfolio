@@ -182,18 +182,22 @@ Sent via Portfolio Contact Form.
   const senderName = name;
   const emailTemplate = htmlContent;
 
-  console.log("Contact email sender:", senderEmail);
-  console.log("Reply-To header:", senderEmail);
+  console.log("CONTACT FORM DATA");
+  console.log("Name:", senderName);
+  console.log("Email:", senderEmail);
 
   // Send mail options
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: `"Portfolio Contact Form" <${process.env.EMAIL_USER}>`,
     to: process.env.EMAIL_USER,
     replyTo: senderEmail,
     subject: `New Portfolio Message - ${senderName}`,
     html: emailTemplate,
     text: textContent
   };
+
+  console.log("MAIL OPTIONS");
+  console.log(mailOptions);
 
   // Deliver email
   await transporter.sendMail(mailOptions);
