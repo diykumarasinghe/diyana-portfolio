@@ -1,4 +1,5 @@
 const Message = require('../models/Message');
+const { sendContactEmail } = require('../utils/emailHelper');
 
 // @desc    Create new contact message
 // @route   POST /api/messages
@@ -16,6 +17,21 @@ const createMessage = async (req, res) => {
       email,
       message
     });
+
+    console.log('Message saved successfully');
+
+    // Attempt to send email notification
+    try {
+      await sendContactEmail({
+        name: newMessage.name,
+        email: newMessage.email,
+        message: newMessage.message,
+        timestamp: newMessage.createdAt
+      });
+      console.log('Email sent successfully');
+    } catch (emailError) {
+      console.error('Email send failed:', emailError.message);
+    }
 
     res.status(201).json(newMessage);
   } catch (error) {
