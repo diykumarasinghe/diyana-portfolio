@@ -180,7 +180,7 @@ Sent via Portfolio Contact Form.
 
   // Send mail options
   const mailOptions = {
-    from: `"Portfolio Contact Form" <${emailUser}>`,
+    from: `"${name}" <${emailUser}>`,
     to: emailReceiver,
     subject: `New Portfolio Message from ${name}`,
     text: textContent,
