@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // ─── Default fallback data from portfolioData.js ────────────────────────────
 // Used only when MongoDB has no data for a given key.
-const getDefaultForKey = (key) => {
+export const getDefaultForKey = (key) => {
   switch (key) {
     case 'hero':
       return {

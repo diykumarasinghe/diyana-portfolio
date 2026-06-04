@@ -27,7 +27,7 @@ import {
   EyeOff,
   Globe
 } from 'lucide-react';
-import { fetchAllCMSData, saveCMSData, migrateLocalStorageToMongoDBIfEmpty } from '../utils/cmsHelper';
+import { fetchAllCMSData, saveCMSData, migrateLocalStorageToMongoDBIfEmpty, getDefaultForKey } from '../utils/cmsHelper';
 
 const GithubIcon = ({ className = "h-4 w-4" }) => (
   <svg 
@@ -75,7 +75,7 @@ const AdminDashboard = () => {
   const [replyText, setReplyText] = useState('');
   const [isReplying, setIsReplying] = useState(false);
 
-  // --- CMS DATA STATES (Synchronized with localStorage) ---
+  // --- CMS DATA STATES (Synchronized with MongoDB via API) ---
   const [heroData, setHeroData] = useState({});
   const [aboutData, setAboutData] = useState({});
   const [educationData, setEducationData] = useState([]);
@@ -177,17 +177,17 @@ const AdminDashboard = () => {
       // Merge: MongoDB data takes priority; migration data fills gaps if MongoDB is empty
       const source = (allCMS && Object.keys(allCMS).length > 0) ? allCMS : (migrationData || {});
 
-      if (source.hero) setHeroData(source.hero);
-      if (source.about) setAboutData(source.about);
-      if (source.education) {
-        const edu = source.education;
-        setEducationData(Array.isArray(edu) ? edu : [edu]);
-      }
-      if (source.experience) setExperienceData(source.experience);
-      if (source.cv) setCvData(source.cv);
-      if (source.projects) setProjectsData(source.projects);
-      if (source.certificates) setCertificatesData(source.certificates);
-      if (source.skills) setSkillsData(source.skills);
+      setHeroData(source.hero || getDefaultForKey('hero'));
+      setAboutData(source.about || getDefaultForKey('about'));
+      
+      const edu = source.education || getDefaultForKey('education');
+      setEducationData(Array.isArray(edu) ? edu : [edu]);
+      
+      setExperienceData(source.experience || getDefaultForKey('experience'));
+      setCvData(source.cv || getDefaultForKey('cv'));
+      setProjectsData(source.projects || getDefaultForKey('projects'));
+      setCertificatesData(source.certificates || getDefaultForKey('certificates'));
+      setSkillsData(source.skills || getDefaultForKey('skills'));
     };
 
     initCMSData();
