@@ -20,7 +20,10 @@ const corsOptions = {
       "https://diyana-portfolio-phi.vercel.app"
     ];
 
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow any Vercel preview or branch deployment URL for this project
+    const isVercelPreview = origin && /^https:\/\/diyana-portfolio(-.*)?\.vercel\.app$/.test(origin);
+
+    if (!origin || allowedOrigins.includes(origin) || isVercelPreview) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS: " + origin));
