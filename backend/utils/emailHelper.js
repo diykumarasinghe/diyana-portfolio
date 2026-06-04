@@ -33,8 +33,8 @@ const sendContactEmail = async (contactDetails) => {
   });
 
   const formattedDate = timestamp 
-    ? new Date(timestamp).toLocaleString('en-US', { timeZoneName: 'short' })
-    : new Date().toLocaleString('en-US', { timeZoneName: 'short' });
+    ? new Date(timestamp).toLocaleString('en-US', { timeZone: 'Asia/Colombo', timeZoneName: 'short' })
+    : new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo', timeZoneName: 'short' });
 
   // Modern HTML Email Template
   const htmlContent = `
