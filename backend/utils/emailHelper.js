@@ -178,17 +178,21 @@ ${message}
 Sent via Portfolio Contact Form.
   `.trim();
 
+  const senderEmail = email;
+  const senderName = name;
+  const emailTemplate = htmlContent;
+
+  console.log("Contact email sender:", senderEmail);
+  console.log("Reply-To header:", senderEmail);
+
   // Send mail options
   const mailOptions = {
-    from: emailUser,
-    to: emailReceiver,
-    replyTo: email,
-    subject: `New Portfolio Message - ${name}`,
-    text: textContent,
-    html: htmlContent,
-    headers: {
-      'Reply-To': email
-    }
+    from: process.env.EMAIL_USER,
+    to: process.env.EMAIL_USER,
+    replyTo: senderEmail,
+    subject: `New Portfolio Message - ${senderName}`,
+    html: emailTemplate,
+    text: textContent
   };
 
   // Deliver email
