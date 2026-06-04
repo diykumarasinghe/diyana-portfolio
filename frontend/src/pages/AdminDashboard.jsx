@@ -27,7 +27,7 @@ import {
   EyeOff,
   Globe
 } from 'lucide-react';
-import { getCMSData, saveCMSData } from '../utils/cmsHelper';
+import { fetchAllCMSData, saveCMSData, migrateLocalStorageToMongoDBIfEmpty } from '../utils/cmsHelper';
 
 const GithubIcon = ({ className = "h-4 w-4" }) => (
   <svg 
@@ -123,6 +123,14 @@ const AdminDashboard = () => {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [profileUpdatedDate, setProfileUpdatedDate] = useState('Jun 03, 2026');
 
+  // --- CMS TOAST NOTIFICATION ---
+  const [cmsToast, setCmsToast] = useState(null); // { type: 'success'|'error', message: string }
+
+  const showCmsToast = (type, message) => {
+    setCmsToast({ type, message });
+    setTimeout(() => setCmsToast(null), 4000);
+  };
+
   // Fetch messages from MongoDB API
   const fetchMessages = async () => {
     const token = localStorage.getItem('adminToken');
@@ -158,18 +166,33 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Load Local Data
-    setHeroData(getCMSData('hero'));
-    setAboutData(getCMSData('about'));
-    const edu = getCMSData('education');
-    setEducationData(Array.isArray(edu) ? edu : [edu]);
-    setExperienceData(getCMSData('experience'));
-    setCvData(getCMSData('cv'));
-    setProjectsData(getCMSData('projects'));
-    setCertificatesData(getCMSData('certificates'));
-    setSkillsData(getCMSData('skills'));
+    // Load CMS data from MongoDB (single request)
+    const initCMSData = async () => {
+      // Try migration check first: if MongoDB empty & localStorage has old data, pre-fill
+      const migrationData = await migrateLocalStorageToMongoDBIfEmpty();
 
-    // Load Message Meta States
+      // Fetch fresh data from MongoDB
+      const allCMS = await fetchAllCMSData();
+
+      // Merge: MongoDB data takes priority; migration data fills gaps if MongoDB is empty
+      const source = (allCMS && Object.keys(allCMS).length > 0) ? allCMS : (migrationData || {});
+
+      if (source.hero) setHeroData(source.hero);
+      if (source.about) setAboutData(source.about);
+      if (source.education) {
+        const edu = source.education;
+        setEducationData(Array.isArray(edu) ? edu : [edu]);
+      }
+      if (source.experience) setExperienceData(source.experience);
+      if (source.cv) setCvData(source.cv);
+      if (source.projects) setProjectsData(source.projects);
+      if (source.certificates) setCertificatesData(source.certificates);
+      if (source.skills) setSkillsData(source.skills);
+    };
+
+    initCMSData();
+
+    // Load Message Meta States (read/replied tracking stays in localStorage — it's UI state, not CMS data)
     const savedRead = localStorage.getItem('readMessageIds');
     if (savedRead) setReadMessageIds(JSON.parse(savedRead));
 
@@ -178,9 +201,6 @@ const AdminDashboard = () => {
 
     const savedDeleted = localStorage.getItem('deletedMessagesCount');
     if (savedDeleted) setDeletedCount(Number(savedDeleted));
-
-    const savedProfileUpdate = localStorage.getItem('cms_profileUpdatedDate');
-    if (savedProfileUpdate) setProfileUpdatedDate(savedProfileUpdate);
 
     fetchMessages();
   }, [navigate]);
@@ -191,19 +211,28 @@ const AdminDashboard = () => {
   };
 
   // --- SAVE ACTIONS ---
-  const saveProfile = (e) => {
+  const saveProfile = async (e) => {
     e.preventDefault();
-    saveCMSData('hero', heroData);
-    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    setProfileUpdatedDate(dateStr);
-    localStorage.setItem('cms_profileUpdatedDate', dateStr);
-    alert('Profile data saved successfully! Updates are now live on the public portfolio.');
+    try {
+      await saveCMSData('hero', heroData);
+      const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      setProfileUpdatedDate(dateStr);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('Profile save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
+    }
   };
 
-  const saveAbout = (e) => {
+  const saveAbout = async (e) => {
     e.preventDefault();
-    saveCMSData('about', aboutData);
-    alert('About section data saved successfully!');
+    try {
+      await saveCMSData('about', aboutData);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('About save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
+    }
   };
 
   // --- EDUCATION CRUD ---
@@ -224,7 +253,7 @@ const AdminDashboard = () => {
     setIsEduModalOpen(true);
   };
 
-  const handleSaveEdu = (e) => {
+  const handleSaveEdu = async (e) => {
     e.preventDefault();
     let updated;
     if (editingEdu) {
@@ -233,26 +262,43 @@ const AdminDashboard = () => {
       const newItem = { ...eduForm, id: 'edu-' + Date.now() };
       updated = [...educationData, newItem];
     }
-    setEducationData(updated);
-    saveCMSData('education', updated);
-    setIsEduModalOpen(false);
-  };
-
-  const handleDeleteEdu = (id) => {
-    if (window.confirm('Delete this academic entry?')) {
-      const updated = educationData.filter(item => item.id !== id);
+    try {
+      await saveCMSData('education', updated);
       setEducationData(updated);
-      saveCMSData('education', updated);
+      setIsEduModalOpen(false);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('Education save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
     }
   };
 
-  const saveCV = (e) => {
+  const handleDeleteEdu = async (id) => {
+    if (window.confirm('Delete this academic entry?')) {
+      const updated = educationData.filter(item => item.id !== id);
+      try {
+        await saveCMSData('education', updated);
+        setEducationData(updated);
+        showCmsToast('success', 'Saved to MongoDB successfully');
+      } catch (err) {
+        console.error('Education delete failed:', err.message);
+        showCmsToast('error', 'Save failed. Please try again.');
+      }
+    }
+  };
+
+  const saveCV = async (e) => {
     e.preventDefault();
     const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     const updatedCV = { ...cvData, lastUpdated: dateStr };
-    setCvData(updatedCV);
-    saveCMSData('cv', updatedCV);
-    alert('CV settings updated successfully!');
+    try {
+      await saveCMSData('cv', updatedCV);
+      setCvData(updatedCV);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('CV save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
+    }
   };
 
   // --- EXPERIENCE CRUD ---
@@ -274,7 +320,7 @@ const AdminDashboard = () => {
     setIsExpModalOpen(true);
   };
 
-  const handleSaveExp = (e) => {
+  const handleSaveExp = async (e) => {
     e.preventDefault();
     let updated;
     if (editingExp) {
@@ -283,16 +329,28 @@ const AdminDashboard = () => {
       const newItem = { ...expForm, id: 'exp-' + Date.now() };
       updated = [newItem, ...experienceData];
     }
-    setExperienceData(updated);
-    saveCMSData('experience', updated);
-    setIsExpModalOpen(false);
+    try {
+      await saveCMSData('experience', updated);
+      setExperienceData(updated);
+      setIsExpModalOpen(false);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('Experience save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
+    }
   };
 
-  const handleDeleteExp = (id) => {
+  const handleDeleteExp = async (id) => {
     if (window.confirm('Delete this internship/job experience?')) {
       const updated = experienceData.filter(item => item.id !== id);
-      setExperienceData(updated);
-      saveCMSData('experience', updated);
+      try {
+        await saveCMSData('experience', updated);
+        setExperienceData(updated);
+        showCmsToast('success', 'Saved to MongoDB successfully');
+      } catch (err) {
+        console.error('Experience delete failed:', err.message);
+        showCmsToast('error', 'Save failed. Please try again.');
+      }
     }
   };
 
@@ -318,7 +376,7 @@ const AdminDashboard = () => {
     setIsProjectModalOpen(true);
   };
 
-  const handleSaveProject = (e) => {
+  const handleSaveProject = async (e) => {
     e.preventDefault();
     let updated;
     const mappedForm = {
@@ -348,16 +406,28 @@ const AdminDashboard = () => {
       const newProj = { ...mappedForm, id: 'proj-' + Date.now() };
       updated = [newProj, ...projectsData];
     }
-    setProjectsData(updated);
-    saveCMSData('projects', updated);
-    setIsProjectModalOpen(false);
+    try {
+      await saveCMSData('projects', updated);
+      setProjectsData(updated);
+      setIsProjectModalOpen(false);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('Project save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
+    }
   };
 
-  const handleDeleteProject = (id) => {
+  const handleDeleteProject = async (id) => {
     if (window.confirm('Are you sure you want to delete this project?')) {
       const updated = projectsData.filter(p => p.id !== id);
-      setProjectsData(updated);
-      saveCMSData('projects', updated);
+      try {
+        await saveCMSData('projects', updated);
+        setProjectsData(updated);
+        showCmsToast('success', 'Saved to MongoDB successfully');
+      } catch (err) {
+        console.error('Project delete failed:', err.message);
+        showCmsToast('error', 'Save failed. Please try again.');
+      }
     }
   };
 
@@ -382,7 +452,7 @@ const AdminDashboard = () => {
     setIsCertModalOpen(true);
   };
 
-  const handleSaveCert = (e) => {
+  const handleSaveCert = async (e) => {
     e.preventDefault();
     let updated;
     const mappedForm = {
@@ -403,16 +473,28 @@ const AdminDashboard = () => {
       const newCert = { ...mappedForm, id: 'cert-' + Date.now() };
       updated = [newCert, ...certificatesData];
     }
-    setCertificatesData(updated);
-    saveCMSData('certificates', updated);
-    setIsCertModalOpen(false);
+    try {
+      await saveCMSData('certificates', updated);
+      setCertificatesData(updated);
+      setIsCertModalOpen(false);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('Certificate save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
+    }
   };
 
-  const handleDeleteCert = (id) => {
+  const handleDeleteCert = async (id) => {
     if (window.confirm('Are you sure you want to delete this credential?')) {
       const updated = certificatesData.filter(c => c.id !== id);
-      setCertificatesData(updated);
-      saveCMSData('certificates', updated);
+      try {
+        await saveCMSData('certificates', updated);
+        setCertificatesData(updated);
+        showCmsToast('success', 'Saved to MongoDB successfully');
+      } catch (err) {
+        console.error('Certificate delete failed:', err.message);
+        showCmsToast('error', 'Save failed. Please try again.');
+      }
     }
   };
 
@@ -433,7 +515,7 @@ const AdminDashboard = () => {
     setIsSkillModalOpen(true);
   };
 
-  const handleSaveSkill = (e) => {
+  const handleSaveSkill = async (e) => {
     e.preventDefault();
     let updated;
     const color = skillForm.accentColor;
@@ -452,21 +534,32 @@ const AdminDashboard = () => {
     };
 
     if (editingSkill) {
-      // Find category index or replace
       updated = skillsData.map((s, idx) => idx === editingSkill.index ? { ...s, ...mappedForm } : s);
     } else {
       updated = [...skillsData, mappedForm];
     }
-    setSkillsData(updated);
-    saveCMSData('skills', updated);
-    setIsSkillModalOpen(false);
+    try {
+      await saveCMSData('skills', updated);
+      setSkillsData(updated);
+      setIsSkillModalOpen(false);
+      showCmsToast('success', 'Saved to MongoDB successfully');
+    } catch (err) {
+      console.error('Skill save failed:', err.message);
+      showCmsToast('error', 'Save failed. Please try again.');
+    }
   };
 
-  const handleDeleteSkill = (index) => {
+  const handleDeleteSkill = async (index) => {
     if (window.confirm('Delete this entire skill category?')) {
       const updated = skillsData.filter((_, idx) => idx !== index);
-      setSkillsData(updated);
-      saveCMSData('skills', updated);
+      try {
+        await saveCMSData('skills', updated);
+        setSkillsData(updated);
+        showCmsToast('success', 'Saved to MongoDB successfully');
+      } catch (err) {
+        console.error('Skill delete failed:', err.message);
+        showCmsToast('error', 'Save failed. Please try again.');
+      }
     }
   };
 
@@ -545,6 +638,20 @@ const AdminDashboard = () => {
       {/* Decorative Orbs */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#3B82F6]/5 rounded-full blur-[120px] -z-10" />
       <div className="absolute bottom-1/4 right-0 w-[500px] h-[500px] bg-[#00D4FF]/5 rounded-full blur-[120px] -z-10" />
+
+      {/* CMS TOAST NOTIFICATION */}
+      {cmsToast && (
+        <div
+          className={`fixed bottom-6 right-6 z-[100] flex items-center space-x-3 px-5 py-3.5 rounded-xl shadow-2xl text-sm font-bold transition-all duration-300 ${
+            cmsToast.type === 'success'
+              ? 'bg-[#052e16] border border-[#22C55E]/40 text-[#22C55E]'
+              : 'bg-[#1c0a0a] border border-red-500/40 text-red-400'
+          }`}
+        >
+          <span className="text-base">{cmsToast.type === 'success' ? '✅' : '❌'}</span>
+          <span>{cmsToast.message}</span>
+        </div>
+      )}
 
       {/* Mobile Drawer Overlay */}
       {isSidebarOpen && (
